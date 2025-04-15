@@ -7,7 +7,7 @@ profiles.yml
 *.prof.yml
 .user.yml
 .snow/
-
+Streamlit_Template_App/
 # Python
 venv/
 __pycache__/
