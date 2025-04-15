@@ -1,0 +1,15 @@
+definition_version: 2
+entities:
+  streamlit_app:
+    type: streamlit
+    identifier: 
+      name: customer_insights_dashboard
+      database: DBT_CORTEX_LLMS
+      schema: ANALYTICS
+    main_file: customer_insights_dashboard.py
+    query_warehouse: CORTEX_WH
+    stage: DBT_CORTEX_LLMS.ANALYTICS.SIS_INSIGHT_DASHBOARD
+    title: "Customer Insights Dashboard"
+    artifacts:
+      - customer_insights_dashboard.py
+      - environment.yml 

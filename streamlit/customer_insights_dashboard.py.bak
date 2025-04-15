@@ -1,0 +1,1490 @@
+"""
+Customer Insights Explorer
+=========================
+A Streamlit in Snowflake app for exploring customer personas and insights
+using natural language queries powered by Cortex Analyst.
+"""
+
+import json
+import time
+from typing import Dict, List, Optional, Any, Tuple
+import re
+
+import pandas as pd
+import numpy as np
+import streamlit as st
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.io import to_json
+from snowflake.snowpark.context import get_active_session
+
+# Configure page
+st.set_page_config(
+    page_title="Customer Insights Explorer",
+    page_icon="🔍",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+# Constants - Set up for our database and schema 
+DBT_CORTEX_LLMS_DB = "DBT_CORTEX_LLMS"
+ANALYTICS_SCHEMA = "ANALYTICS"
+SEMANTIC_MODEL_DB = "DBT_CORTEX_LLMS"
+SEMANTIC_MODEL_SCHEMA = "ANALYTICS"
+SEMANTIC_MODEL_STAGE = "SEMANTIC_MODELS"
+SEMANTIC_MODEL_FILE = "semantic-model.yaml"
+SEMANTIC_MODEL_PATH = f"{SEMANTIC_MODEL_DB}.{SEMANTIC_MODEL_SCHEMA}.{SEMANTIC_MODEL_STAGE}/{SEMANTIC_MODEL_FILE}"
+
+# Debugging flag
+VERBOSE_DEBUG = False  # Set to True to show detailed error information
+
+# Note: All SQL queries in this app use fully qualified table names in the format:
+# DBT_CORTEX_LLMS.ANALYTICS.<table_name> to ensure proper schema resolution
+
+# Custom CSS for better styling
+st.markdown("""
+<style>
+    .main {
+        background-color: #f9fafb;
+    }
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 24px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        height: 50px;
+        white-space: pre-wrap;
+        background-color: #ffffff;
+        border-radius: 4px 4px 0px 0px;
+        gap: 1px;
+        padding-top: 10px;
+        padding-bottom: 10px;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #f0f8ff;
+        border-bottom: 2px solid #4e8cff;
+    }
+    div.block-container {
+        padding-top: 2rem;
+    }
+    div.stButton > button:first-child {
+        background-color: #4e8cff;
+        color:white;
+    }
+    .metric-card {
+        background-color: white;
+        border: 1px solid #e6e6e6;
+        padding: 15px;
+        border-radius: 5px;
+        box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
+    }
+    .metric-value {
+        font-size: 24px;
+        font-weight: bold;
+    }
+    .metric-label {
+        font-size: 14px;
+        color: #666;
+    }
+    .high-risk {
+        color: #ff4b4b;
+    }
+    .medium-risk {
+        color: #ffa64b;
+    }
+    .low-risk {
+        color: #4bb543;
+    }
+    .chat-message {
+        padding: 1.5rem;
+        border-radius: 0.5rem;
+        margin-bottom: 1rem;
+        display: flex;
+        flex-direction: column;
+    }
+    .chat-message.user {
+        background-color: #f0f8ff;
+        border-left: 5px solid #4e8cff;
+    }
+    .chat-message.analyst {
+        background-color: white;
+        border-left: 5px solid #10b981;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+    }
+    .persona-card {
+        background-color: white;
+        border-radius: 10px;
+        padding: 15px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        height: 100%;
+        transition: transform 0.3s ease;
+    }
+    .persona-card:hover {
+        transform: translateY(-5px);
+    }
+    .persona-icon {
+        font-size: 36px;
+        text-align: center;
+        margin-bottom: 10px;
+    }
+    .persona-title {
+        font-size: 18px;
+        font-weight: bold;
+        margin-bottom: 5px;
+        text-align: center;
+    }
+    .persona-description {
+        font-size: 14px;
+        color: #666;
+    }
+    .query-history-item {
+        padding: 8px 15px;
+        border-radius: 5px;
+        margin-bottom: 8px;
+        background-color: #f8f9fa;
+        cursor: pointer;
+        border-left: 3px solid #4e8cff;
+        transition: background-color 0.2s;
+    }
+    .query-history-item:hover {
+        background-color: #e9f0fd;
+    }
+    .chart-caption {
+        text-align: center;
+        font-style: italic;
+        color: #666;
+        margin-top: 5px;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+def reset_session_state():
+    """Reset important session state elements for this page."""
+    st.session_state.messages = []  # List to store conversation messages
+    st.session_state.active_suggestion = None  # Currently selected suggestion
+    st.session_state.query_history = []  # Store history of queries
+    st.session_state.persona_overview_generated = False  # Track if overview has been generated
+
+
+def debug_print(message: str, error: Optional[Exception] = None, data: Optional[pd.DataFrame] = None):
+    """Print debug information if verbose debugging is enabled."""
+    if VERBOSE_DEBUG:
+        st.write(f"🔍 Debug: {message}")
+        if error:
+            st.write(f"❌ Error details: {str(error)}")
+            import traceback
+            st.code(traceback.format_exc(), language="python")
+        if data is not None:
+            st.write("DataFrame info:")
+            st.write(f"Columns: {data.columns.tolist()}")
+            st.write("First few rows:")
+            st.dataframe(data.head())
+
+
+def snowflake_connection():
+    """Get the active Snowflake session."""
+    try:
+        return get_active_session()
+    except Exception as e:
+        debug_print("Failed to connect to Snowflake", e)
+        st.error(f"Failed to connect to Snowflake: {e}")
+        return None
+
+
+def send_cortex_analyst_request(messages: List[Dict], semantic_model_path: str) -> Tuple[Dict, Optional[str]]:
+    """
+    Send a request to Cortex Analyst.
+    
+    Args:
+        messages: Conversation history
+        semantic_model_path: Path to semantic model
+        
+    Returns:
+        Tuple containing response and error message (if any)
+    """
+    try:
+        session = snowflake_connection()
+        if not session:
+            return {}, "Failed to establish Snowflake connection"
+        
+        debug_print(f"Sending request to Cortex Analyst with semantic model: {semantic_model_path}")
+        debug_print(f"Messages: {json.dumps(messages, indent=2)}")
+        
+        # Call Cortex Analyst function to send the request
+        result = session.sql(f"""
+        SELECT SYSTEM$CORTEX_ANALYST(
+            OBJECT_CONSTRUCT(
+                'messages', PARSE_JSON('{json.dumps(messages)}'),
+                'semantic_model_path', '{semantic_model_path}'
+            )
+        )
+        """).collect()[0][0]
+        
+        parsed_result = json.loads(result)
+        debug_print(f"Cortex Analyst response: {json.dumps(parsed_result, indent=2)}")
+        return parsed_result, None
+    except Exception as e:
+        error_msg = f"Error calling Cortex Analyst: {str(e)}"
+        debug_print("Cortex Analyst request failed", e)
+        return {"request_id": "", "message": {"content": []}}, error_msg
+
+
+def execute_sql_query(sql: str) -> Tuple[Optional[pd.DataFrame], Optional[str]]:
+    """
+    Execute a SQL query and return the results as a DataFrame.
+    
+    Args:
+        sql: SQL query to execute
+        
+    Returns:
+        Tuple containing DataFrame and error message (if any)
+    """
+    try:
+        session = snowflake_connection()
+        if not session:
+            return None, "Failed to establish Snowflake connection"
+        
+        debug_print(f"Executing SQL query:\n{sql}")
+        result = session.sql(sql).to_pandas()
+        
+        if result is not None and not result.empty:
+            debug_print(f"Query returned {len(result)} rows")
+            debug_print(f"Columns: {result.columns.tolist()}")
+            debug_print(f"First few rows:\n{result.head()}")
+        else:
+            debug_print("Query returned no results")
+            
+        return result, None
+    except Exception as e:
+        error_msg = f"Error executing SQL query: {str(e)}"
+        debug_print("SQL query execution failed", e)
+        return None, error_msg
+
+
+def get_sample_questions() -> List[str]:
+    """Return sample questions for the customer insights model."""
+    return [
+        "What is the distribution of customer personas?",
+        "Who are my high-risk customers?",
+        "Show me customers with deteriorating sentiment",
+        "Which customers have the highest frustration levels?",
+        "Who are the best customers for upsell opportunities?",
+        "How many customers do we have by sentiment and churn risk?",
+        "Which customers have mentioned pricing concerns?",
+        "Show me frustrated customers with many support tickets"
+    ]
+
+
+def show_header_and_sidebar():
+    """Display the header and sidebar of the app."""
+    # Main header (in the center area)
+    st.markdown("<h1 style='text-align: center;'>🔍 Customer Insights Explorer</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; font-size: 1.2em;'>Powered by Snowflake Cortex Analyst</p>", unsafe_allow_html=True)
+    
+    # Sidebar content
+    with st.sidebar:
+        st.image("https://www.snowflake.com/wp-content/themes/snowflake/assets/img/snowflake-logo.svg", width=200)
+        st.markdown("## About This App")
+        st.markdown("""
+        Explore your customer data using natural language queries! Ask questions about:
+        - Customer personas
+        - Sentiment trends
+        - Churn risk factors
+        - Upsell opportunities
+        - Support ticket patterns
+        """)
+        
+        st.markdown("## Query History")
+        if "query_history" in st.session_state and st.session_state.query_history:
+            for i, query in enumerate(st.session_state.query_history):
+                if st.sidebar.markdown(f"<div class='query-history-item'>{query}</div>", unsafe_allow_html=True):
+                    process_user_input(query)
+        else:
+            st.markdown("_Your question history will appear here_")
+        
+        st.divider()
+        
+        if st.button("Clear Chat History", type="primary", use_container_width=True):
+            reset_session_state()
+            st.experimental_rerun()
+
+
+def check_table_fields():
+    """Check available fields in the customer_persona_signals table."""
+    query = """
+    SELECT COLUMN_NAME, DATA_TYPE
+    FROM DBT_CORTEX_LLMS.INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = 'ANALYTICS'
+    AND TABLE_NAME = 'CUSTOMER_PERSONA_SIGNALS'
+    ORDER BY ORDINAL_POSITION
+    """
+    result = execute_sql_query(query)
+    if result[0] is not None:
+        debug_print("Available fields in customer_persona_signals:")
+        debug_print(result[0].to_string())
+    return result[0]
+
+
+def display_persona_overview():
+    """Display the main persona overview dashboard."""
+    st.header("📊 Customer Persona Overview")
+    
+    # Check available fields first
+    fields_df = check_table_fields()
+    if fields_df is None or fields_df.empty:
+        st.error("Could not retrieve table fields. Please check the database connection.")
+        return
+    
+    # Get data with detailed error handling - silently load data
+    persona_dist = execute_sql_query(get_customer_persona_distribution())
+    if persona_dist[1]:
+        st.error(f"Error loading persona distribution: {persona_dist[1]}")
+        return
+    
+    risk_dist = execute_sql_query(get_sentiment_by_risk())
+    if risk_dist[1]:
+        st.error(f"Error loading sentiment by risk: {risk_dist[1]}")
+        return
+    
+    sentiment_trends = execute_sql_query(get_sentiment_trends())
+    if sentiment_trends[1]:
+        st.error(f"Error loading sentiment trends: {sentiment_trends[1]}")
+        return
+    
+    # Get total tickets and average sentiment
+    total_tickets = execute_sql_query(get_total_tickets())
+    avg_sentiment = execute_sql_query(get_average_sentiment())
+    
+    if total_tickets[1] or avg_sentiment[1]:
+        st.error("Error loading ticket or sentiment metrics")
+        return
+    
+    # Calculate metrics
+    if persona_dist[0] is not None and not persona_dist[0].empty:
+        # Try to get the count column, which might be named differently
+        count_col = next((col for col in persona_dist[0].columns if 'count' in col.lower()), None)
+        if count_col:
+            total_customers = persona_dist[0][count_col].sum()
+        else:
+            st.error("Could not find count column in persona distribution data")
+            total_customers = 0
+    else:
+        total_customers = 0
+    
+    if risk_dist[0] is not None and not risk_dist[0].empty:
+        # Try to get the count column
+        count_col = next((col for col in risk_dist[0].columns if 'count' in col.lower()), None)
+        if count_col:
+            high_risk = risk_dist[0][risk_dist[0]['RISK_LEVEL'] == 'High'][count_col].sum()
+            positive_sentiment = risk_dist[0][risk_dist[0]['OVERALL_SENTIMENT'] == 'Positive'][count_col].sum()
+        else:
+            st.error("Could not find count column in risk distribution data")
+            high_risk = 0
+            positive_sentiment = 0
+    else:
+        high_risk = 0
+        positive_sentiment = 0
+    
+    upsell_result = execute_sql_query(get_upsell_opportunities())
+    if upsell_result[1]:
+        st.error(f"Error loading upsell opportunities: {upsell_result[1]}")
+        return
+    
+    if upsell_result[0] is not None and not upsell_result[0].empty:
+        debug_print("Upsell opportunities data:", data=upsell_result[0])
+        
+        # Try to get the count column
+        count_col = next((col for col in upsell_result[0].columns if 'count' in col.lower()), None)
+        if count_col:
+            upsell_opps = upsell_result[0][count_col].iloc[0]
+        else:
+            st.error("Could not find count column in upsell opportunities data")
+            upsell_opps = 0
+    else:
+        st.warning("No upsell opportunities data available")
+        upsell_opps = 0
+    
+    # Get total tickets and average sentiment values
+    total_ticket_count = total_tickets[0]['TOTAL_TICKETS'].iloc[0] if total_tickets[0] is not None and not total_tickets[0].empty else 0
+    overall_avg_sentiment = avg_sentiment[0]['AVG_SENTIMENT'].iloc[0] if avg_sentiment[0] is not None and not avg_sentiment[0].empty else 0
+    
+    # Display metrics in 6 columns
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
+    with col1:
+        st.metric("👥 Total Customers", f"{total_customers:,}")
+    with col2:
+        st.metric("⚠️ High Churn Risk", f"{high_risk:,}")
+    with col3:
+        st.metric("😊 Positive Sentiment", f"{positive_sentiment:,}")
+    with col4:
+        st.metric("💰 Upsell Opportunities", f"{upsell_opps:,}")
+    with col5:
+        st.metric("🎫 Total Tickets", f"{total_ticket_count:,}")
+    with col6:
+        st.metric("📊 Avg Sentiment", f"{overall_avg_sentiment:.2f}")
+    
+    # Display charts
+    st.subheader("📈 Customer Distribution & Risk Analysis")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Persona Distribution
+        fig = px.bar(
+            persona_dist[0],
+            x='DERIVED_PERSONA',
+            y='TOTAL_COUNT',
+            title='👥 Customer Persona Distribution',
+            labels={'DERIVED_PERSONA': 'Persona', 'TOTAL_COUNT': 'Number of Customers'},
+            color='DERIVED_PERSONA',
+            color_discrete_map={
+                'Mixed': '#1f77b4',       # Blue
+                'Neutral': '#ff7f0e',     # Orange
+                'Improving': '#2ca02c',   # Green
+                'Deteriorating': '#d62728', # Red
+                'Frustrated': '#9467bd',  # Purple
+                'Satisfied': '#8c564b'    # Brown
+            }
+        )
+        fig.update_layout(showlegend=False)
+        st.plotly_chart(fig, use_container_width=True)
+    
+    with col2:
+        # Risk Distribution
+        fig = px.pie(
+            risk_dist[0],
+            values='TOTAL_COUNT',
+            names='RISK_LEVEL',
+            title='⚠️ Customer Churn Risk Distribution',
+            hole=0.4
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    
+    # Get and display new visualizations
+    st.subheader("🔎 Customer Engagement & Opportunities")
+    
+    # Get upsell distribution data
+    upsell_dist = execute_sql_query(get_upsell_distribution())
+    ratings_tickets = execute_sql_query(get_ratings_vs_tickets())
+    
+    if upsell_dist[1] or ratings_tickets[1]:
+        st.error("Error loading additional metrics")
+        return
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Upsell Opportunities Distribution
+        if upsell_dist[0] is not None and not upsell_dist[0].empty:
+            fig = px.pie(
+                upsell_dist[0],
+                values='CUSTOMER_COUNT',
+                names='UPSELL_OPPORTUNITY',
+                title='💰 Customers by Upsell Opportunity',
+                hole=0.4,
+                color_discrete_map={'High': '#2ecc71', 'Medium': '#f1c40f', 'Low': '#e74c3c'}
+            )
+            fig.update_layout(
+                showlegend=True,
+                legend_title="Opportunity Level"
+            )
+            st.plotly_chart(fig, use_container_width=True)
+    
+    with col2:
+        # Ratings vs Tickets Scatter Plot
+        if ratings_tickets[0] is not None and not ratings_tickets[0].empty:
+            fig = px.scatter(
+                ratings_tickets[0],
+                x='NUM_TICKETS',
+                y='AVG_RATING',
+                color='DERIVED_PERSONA',
+                title='🎫 Customer Ratings vs Support Tickets',
+                labels={
+                    'NUM_TICKETS': 'Number of Support Tickets',
+                    'AVG_RATING': 'Average Rating',
+                    'DERIVED_PERSONA': 'Customer Persona'
+                }
+            )
+            fig.update_layout(
+                showlegend=True,
+                legend_title="Customer Persona"
+            )
+            # Add trendline
+            fig.add_traces(px.scatter(
+                ratings_tickets[0],
+                x='NUM_TICKETS',
+                y='AVG_RATING',
+                trendline="lowess"
+            ).data)
+            st.plotly_chart(fig, use_container_width=True)
+    
+    # Sentiment Trends
+    st.subheader("📉 Sentiment Trends Over Time")
+    
+    # Add options for visualization type
+    view_options = st.radio(
+        "Select view type:",
+        ["Combined view", "Small multiples", "Trend focus"],
+        horizontal=True
+    )
+    
+    if view_options == "Small multiples":
+        # Calculate number of columns based on number of personas
+        personas = sentiment_trends[0]['DERIVED_PERSONA'].unique()
+        num_cols = min(3, len(personas))
+        cols = st.columns(num_cols)
+        
+        # Create a separate chart for each persona
+        for i, persona in enumerate(personas):
+            persona_data = sentiment_trends[0][sentiment_trends[0]['DERIVED_PERSONA'] == persona]
+            
+            with cols[i % num_cols]:
+                fig = px.line(
+                    persona_data,
+                    x='INTERACTION_DATE',
+                    y='AVG_SENTIMENT',
+                    title=f'{persona}',
+                    labels={'INTERACTION_DATE': 'Date', 'AVG_SENTIMENT': 'Sentiment'},
+                    color_discrete_map={
+                        'Mixed': '#1f77b4',       # Blue
+                        'Neutral': '#ff7f0e',     # Orange
+                        'Improving': '#2ca02c',   # Green
+                        'Deteriorating': '#d62728', # Red
+                        'Frustrated': '#9467bd',  # Purple
+                        'Satisfied': '#8c564b'    # Brown
+                    }
+                )
+                
+                # Add a trendline for clarity
+                fig.add_traces(px.scatter(
+                    persona_data,
+                    x='INTERACTION_DATE',
+                    y='AVG_SENTIMENT',
+                    trendline="lowess"
+                ).data)
+                
+                # Improve layout
+                fig.update_layout(
+                    height=250,
+                    margin=dict(l=10, r=10, t=30, b=30),
+                    showlegend=False,
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    paper_bgcolor='rgba(0,0,0,0)'
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
+    
+    elif view_options == "Trend focus":
+        # Create a chart that focuses on the overall trend
+        # Apply a rolling mean to smooth the lines
+        df_smooth = sentiment_trends[0].copy()
+        personas = df_smooth['DERIVED_PERSONA'].unique()
+        
+        # Group by persona and calculate rolling mean
+        for persona in personas:
+            mask = df_smooth['DERIVED_PERSONA'] == persona
+            if mask.sum() > 3:  # Only smooth if we have enough data points
+                df_smooth.loc[mask, 'AVG_SENTIMENT'] = df_smooth.loc[mask, 'AVG_SENTIMENT'].rolling(
+                    window=3, center=True, min_periods=1
+                ).mean()
+        
+        # Create the trend-focused chart
+        fig = px.line(
+            df_smooth,
+            x='INTERACTION_DATE',
+            y='AVG_SENTIMENT',
+            color='DERIVED_PERSONA',
+            title='📉 Smoothed Sentiment Trends (3-point rolling average)',
+            labels={'INTERACTION_DATE': 'Date', 'AVG_SENTIMENT': 'Average Sentiment'},
+            color_discrete_map={
+                'Mixed': '#1f77b4',       # Blue
+                'Neutral': '#ff7f0e',     # Orange
+                'Improving': '#2ca02c',   # Green
+                'Deteriorating': '#d62728', # Red
+                'Frustrated': '#9467bd',  # Purple
+                'Satisfied': '#8c564b'    # Brown
+            }
+        )
+        
+        # Add a darker line to show actual trendline for each persona
+        for persona in personas:
+            persona_data = sentiment_trends[0][sentiment_trends[0]['DERIVED_PERSONA'] == persona]
+            if len(persona_data) > 3:
+                trend = px.scatter(
+                    persona_data,
+                    x='INTERACTION_DATE',
+                    y='AVG_SENTIMENT',
+                    trendline="lowess"
+                ).data[1]
+                
+                trend.line.width = 3
+                trend.line.dash = 'solid'
+                trend.showlegend = False
+                fig.add_trace(trend)
+        
+        # Improve layout
+        fig.update_layout(
+            height=500,
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
+            ),
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)'
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+    
+    else:  # Combined view (default)
+        # Show the original combined view but with improved layout
+        fig = px.line(
+            sentiment_trends[0],
+            x='INTERACTION_DATE',
+            y='AVG_SENTIMENT',
+            color='DERIVED_PERSONA',
+            title='📉 Average Sentiment by Persona Over Time',
+            labels={'INTERACTION_DATE': 'Date', 'AVG_SENTIMENT': 'Average Sentiment'},
+            color_discrete_map={
+                'Mixed': '#1f77b4',       # Blue
+                'Neutral': '#ff7f0e',     # Orange
+                'Improving': '#2ca02c',   # Green
+                'Deteriorating': '#d62728', # Red
+                'Frustrated': '#9467bd',  # Purple
+                'Satisfied': '#8c564b'    # Brown
+            }
+        )
+        
+        # Improve layout
+        fig.update_layout(
+            height=500,
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
+            ),
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)'
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+    
+    # Add an explanatory note
+    st.caption("Note: Sentiment ranges from -1 (very negative) to +1 (very positive). The chart shows how different customer personas' sentiment changes over time.")
+
+
+def display_persona_card(title, icon, description, count):
+    """Display a persona card with icon and description."""
+    st.markdown(f"""
+    <div class="persona-card">
+        <div class="persona-icon">{icon}</div>
+        <div class="persona-title">{title} ({count})</div>
+        <div class="persona-description">{description}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def display_sample_questions():
+    """Display sample questions as clickable buttons."""
+    st.markdown("#### 💬 Sample Questions")
+    
+    samples = get_sample_questions()
+    cols = st.columns(2)
+    
+    for i, question in enumerate(samples):
+        with cols[i % 2]:
+            if st.button(question, key=f"sample_{i}"):
+                process_user_input(question)
+
+
+def handle_user_inputs():
+    """Handle user inputs from the chat interface."""
+    # Handle chat input
+    user_input = st.chat_input("💬 Ask a question about your customers...")
+    if user_input:
+        process_user_input(user_input)
+
+    # Handle suggested question click
+    elif "active_suggestion" in st.session_state and st.session_state.active_suggestion is not None:
+        suggestion = st.session_state.active_suggestion
+        st.session_state.active_suggestion = None
+        process_user_input(suggestion)
+
+
+def process_user_input(prompt: str):
+    """Process user input and update conversation history."""
+    # Add to query history if not already there
+    if "query_history" not in st.session_state:
+        st.session_state.query_history = []
+    
+    if prompt not in st.session_state.query_history:
+        st.session_state.query_history.insert(0, prompt)
+        # Keep only the 10 most recent queries
+        st.session_state.query_history = st.session_state.query_history[:10]
+    
+    # Create a new message, append to history and display immediately
+    new_user_message = {
+        "role": "user",
+        "content": [{"type": "text", "text": prompt}],
+    }
+    
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+    
+    st.session_state.messages.append(new_user_message)
+    
+    with st.chat_message("user"):
+        st.markdown(f"<div class='chat-message user'>{prompt}</div>", unsafe_allow_html=True)
+
+    # Show progress indicator inside analyst chat message while waiting for response
+    with st.chat_message("analyst"):
+        # Send prompt to Cortex Analyst and process the response
+        response, error_msg = send_cortex_analyst_request(
+            st.session_state.messages, 
+            SEMANTIC_MODEL_PATH
+        )
+        
+        if error_msg is None:
+            analyst_message = {
+                "role": "analyst",
+                "content": response["message"]["content"],
+                "request_id": response["request_id"],
+            }
+        else:
+            # If an error occurred, treat its content as analyst's message
+            analyst_message = {
+                "role": "analyst",
+                "content": [{"type": "text", "text": error_msg}],
+                "request_id": response.get("request_id", ""),
+            }
+        
+        # Update the session state by appending a new message object
+        st.session_state.messages.append(analyst_message)
+        
+        # Display the message in UI
+        display_analyst_message(analyst_message["content"])
+
+    # Rerun to refresh the UI
+    st.experimental_rerun()
+
+
+def display_analyst_message(content: List[Dict[str, str]]):
+    """Display an analyst message with text, SQL, and results."""
+    for item in content:
+        if item["type"] == "text":
+            st.markdown(f"<div class='chat-message analyst'>{item['text']}</div>", unsafe_allow_html=True)
+        
+        elif item["type"] == "suggestions":
+            st.markdown("__💡 Suggested Follow-up Questions:__")
+            display_suggestions_buttons(item["suggestions"])
+        
+        elif item["type"] == "sql":
+            # Display the SQL query and results
+            display_sql_query(item["statement"])
+
+
+def display_suggestions_buttons(suggestions: List[str]):
+    """Display suggestions as buttons."""
+    for suggestion_index, suggestion in enumerate(suggestions):
+        if st.button(
+            suggestion,
+            key=f"suggestion_{suggestion_index}",
+            use_container_width=True,
+        ):
+            st.session_state.active_suggestion = suggestion
+
+
+def display_sql_query(sql: str):
+    """Display SQL query, execute it, and show results with visualization options."""
+    with st.expander("📜 SQL Query", expanded=False):
+        st.code(sql, language="sql")
+
+    # Execute the query and display results
+    df, error_msg = execute_sql_query(sql)
+    
+    if error_msg:
+        st.error(f"Error executing query: {error_msg}")
+        return
+    
+    if df is None or df.empty:
+        st.info("No results found for this query.")
+        return
+    
+    # Display results in tabs
+    data_tab, chart_tab = st.tabs(["Data 📊", "Visualization 📈"])
+    
+    with data_tab:
+        st.dataframe(df, use_container_width=True)
+        
+        # Add download button
+        csv = df.to_csv(index=False)
+        st.download_button(
+            label="📥 Download results as CSV",
+            data=csv,
+            file_name="query_results.csv",
+            mime="text/csv",
+        )
+    
+    with chart_tab:
+        create_chart_for_data(df)
+
+
+def create_chart_for_data(df: pd.DataFrame):
+    """Create an appropriate chart based on the data structure."""
+    if df.empty:
+        st.info("No data to visualize.")
+        return
+    
+    # Get column types
+    numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
+    categorical_cols = df.select_dtypes(include=['object', 'category']).columns.tolist()
+    
+    # Choose chart type based on data structure
+    if len(df) == 1 and len(numeric_cols) > 0:
+        # Single row with numeric values - create a horizontal bar chart
+        df_melted = pd.melt(df, var_name='Metric', value_name='Value')
+        fig = px.bar(
+            df_melted, 
+            y='Metric', 
+            x='Value', 
+            orientation='h',
+            title='Results Summary',
+            text='Value'
+        )
+        st.plotly_chart(fig, use_container_width=True)
+        
+    elif len(categorical_cols) >= 1 and len(numeric_cols) >= 1:
+        # Categorical and numeric columns - offer chart type selection
+        chart_types = ["Bar Chart", "Pie Chart", "Line Chart", "Scatter Plot"]
+        chart_type = st.selectbox("Select Chart Type", chart_types)
+        
+        # Select columns for X axis (categorical) and Y axis (numeric)
+        x_col = st.selectbox("Select X-axis (Category)", categorical_cols)
+        y_col = st.selectbox("Select Y-axis (Values)", numeric_cols)
+        
+        # Optional color column
+        color_col = st.selectbox("Select Color Column (Optional)", ["None"] + categorical_cols)
+        color_col = None if color_col == "None" else color_col
+        
+        # Create chart based on selection
+        if chart_type == "Bar Chart":
+            fig = px.bar(
+                df, 
+                x=x_col, 
+                y=y_col,
+                color=color_col,
+                title=f"{y_col} by {x_col}",
+                labels={x_col: x_col, y_col: y_col}
+            )
+            st.plotly_chart(fig, use_container_width=True)
+            
+        elif chart_type == "Pie Chart":
+            if len(df) > 10:
+                st.warning("Pie charts work best with fewer than 10 categories. Consider using a bar chart instead.")
+            
+            fig = px.pie(
+                df, 
+                names=x_col, 
+                values=y_col,
+                title=f"{y_col} by {x_col}"
+            )
+            st.plotly_chart(fig, use_container_width=True)
+            
+        elif chart_type == "Line Chart":
+            fig = px.line(
+                df, 
+                x=x_col, 
+                y=y_col,
+                color=color_col,
+                markers=True,
+                title=f"{y_col} Trend by {x_col}",
+                labels={x_col: x_col, y_col: y_col}
+            )
+            st.plotly_chart(fig, use_container_width=True)
+            
+        elif chart_type == "Scatter Plot":
+            size_col = None
+            if len(numeric_cols) > 1:
+                size_col_options = ["None"] + numeric_cols
+                size_col_options.remove(y_col)
+                size_col = st.selectbox("Select Size Column (Optional)", size_col_options)
+                size_col = None if size_col == "None" else size_col
+            
+            fig = px.scatter(
+                df, 
+                x=x_col, 
+                y=y_col,
+                color=color_col,
+                size=size_col,
+                title=f"{y_col} vs {x_col}",
+                labels={x_col: x_col, y_col: y_col}
+            )
+            st.plotly_chart(fig, use_container_width=True)
+    
+    elif len(numeric_cols) >= 2:
+        # Multiple numeric columns - offer correlation analysis
+        x_col = st.selectbox("Select X-axis", numeric_cols)
+        y_col = st.selectbox("Select Y-axis", [col for col in numeric_cols if col != x_col])
+        
+        fig = px.scatter(
+            df, 
+            x=x_col, 
+            y=y_col,
+            title=f"Correlation between {x_col} and {y_col}",
+            labels={x_col: x_col, y_col: y_col}
+        )
+        
+        # Add trendline
+        fig.update_layout(
+            xaxis_title=x_col,
+            yaxis_title=y_col
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Calculate correlation
+        if len(df) > 1:
+            correlation = df[x_col].corr(df[y_col])
+            st.markdown(f"**Correlation coefficient**: {correlation:.2f}")
+    
+    else:
+        # Default to a simple dataframe view if no clear visualization path
+        st.dataframe(df, use_container_width=True)
+
+
+def display_conversation():
+    """Display the conversation history between the user and the assistant."""
+    for idx, message in enumerate(st.session_state.messages):
+        role = message["role"]
+        content = message["content"]
+        
+        with st.chat_message(role):
+            if role == "user":
+                st.markdown(f"<div class='chat-message user'>{content[0]['text']}</div>", unsafe_allow_html=True)
+            else:
+                display_analyst_message(content)
+
+
+def get_customer_persona_distribution():
+    """Get the distribution of customer personas."""
+    base_query = """
+    SELECT 
+        derived_persona,
+        COUNT(*) as total_count
+    FROM DBT_CORTEX_LLMS.ANALYTICS.CUSTOMER_PERSONA_SIGNALS
+    """
+    query = apply_filters(base_query, st.session_state.get('filters', {}))
+    return query + " GROUP BY derived_persona ORDER BY total_count DESC"
+
+def get_sentiment_trends():
+    """Get sentiment trends by persona."""
+    base_query = """
+    SELECT 
+        c.derived_persona,
+        s.interaction_date,
+        AVG(s.sentiment_score) as avg_sentiment
+    FROM DBT_CORTEX_LLMS.ANALYTICS.CUSTOMER_PERSONA_SIGNALS c
+    JOIN DBT_CORTEX_LLMS.ANALYTICS.FACT_CUSTOMER_INTERACTIONS s
+        ON c.customer_id = s.customer_id
+    """
+    query = apply_filters(base_query, st.session_state.get('filters', {}))
+    return query + " GROUP BY c.derived_persona, s.interaction_date ORDER BY s.interaction_date"
+
+def get_upsell_opportunities():
+    """Get count of high upsell opportunities."""
+    base_query = """
+    SELECT COUNT(*) as total_count
+    FROM DBT_CORTEX_LLMS.ANALYTICS.CUSTOMER_PERSONA_SIGNALS
+    WHERE upsell_opportunity = 'High'
+    """
+    return apply_filters(base_query, st.session_state.get('filters', {}))
+
+def get_upsell_distribution():
+    """Get distribution of customers by upsell opportunity level."""
+    base_query = """
+    SELECT 
+        upsell_opportunity,
+        COUNT(*) as customer_count
+    FROM DBT_CORTEX_LLMS.ANALYTICS.CUSTOMER_PERSONA_SIGNALS
+    """
+    query = apply_filters(base_query, st.session_state.get('filters', {}))
+    return query + " GROUP BY upsell_opportunity ORDER BY upsell_opportunity"
+
+def get_ratings_vs_tickets():
+    """Get customer average ratings versus their number of tickets."""
+    base_query = """
+    SELECT 
+        c.customer_id,
+        c.derived_persona,
+        c.avg_sentiment as avg_rating,
+        c.ticket_count as num_tickets
+    FROM DBT_CORTEX_LLMS.ANALYTICS.CUSTOMER_PERSONA_SIGNALS c
+    WHERE c.avg_sentiment IS NOT NULL
+    """
+    query = apply_filters(base_query, st.session_state.get('filters', {}))
+    return query + " ORDER BY c.ticket_count DESC"
+
+def get_total_tickets():
+    """Get the total number of support tickets."""
+    base_query = """
+    SELECT 
+        SUM(ticket_count) as total_tickets
+    FROM DBT_CORTEX_LLMS.ANALYTICS.CUSTOMER_PERSONA_SIGNALS
+    """
+    return apply_filters(base_query, st.session_state.get('filters', {}))
+
+def get_average_sentiment():
+    """Get the average sentiment across all customers."""
+    base_query = """
+    SELECT 
+        AVG(avg_sentiment) as avg_sentiment
+    FROM DBT_CORTEX_LLMS.ANALYTICS.CUSTOMER_PERSONA_SIGNALS
+    WHERE avg_sentiment IS NOT NULL
+    """
+    return apply_filters(base_query, st.session_state.get('filters', {}))
+
+def get_high_risk_customers():
+    """Get high risk customers with their details."""
+    base_query = """
+    SELECT 
+        c.customer_id, 
+        c.derived_persona, 
+        c.avg_sentiment, 
+        c.sentiment_trend, 
+        c.ticket_count as max_frustration_level, 
+        c.ticket_categories as primary_concern, 
+        i.customer_summary
+    FROM DBT_CORTEX_LLMS.ANALYTICS.CUSTOMER_PERSONA_SIGNALS c
+    JOIN DBT_CORTEX_LLMS.ANALYTICS.INSIGHT_SUMMARIES i
+        ON c.customer_id = i.customer_id
+    WHERE c.churn_risk = 'High'
+    """
+    query = apply_filters(base_query, st.session_state.get('filters', {}))
+    return query + " ORDER BY c.ticket_count DESC, c.sentiment_trend ASC"
+
+def get_volatile_customers():
+    """Get customers with most inconsistent sentiment."""
+    base_query = """
+    WITH customer_sentiment_stats AS (
+        SELECT 
+            c.customer_id,
+            c.derived_persona,
+            c.avg_sentiment,
+            c.sentiment_volatility,
+            c.ticket_count as interaction_count,
+            i.customer_summary
+        FROM DBT_CORTEX_LLMS.ANALYTICS.CUSTOMER_PERSONA_SIGNALS c
+        JOIN DBT_CORTEX_LLMS.ANALYTICS.FACT_CUSTOMER_INTERACTIONS s
+            ON c.customer_id = s.customer_id
+        JOIN DBT_CORTEX_LLMS.ANALYTICS.INSIGHT_SUMMARIES i
+            ON c.customer_id = i.customer_id
+    """
+    query = apply_filters(base_query, st.session_state.get('filters', {}))
+    return query + """
+        GROUP BY c.customer_id, c.derived_persona, c.avg_sentiment, c.sentiment_volatility, c.ticket_count, i.customer_summary
+        HAVING c.ticket_count > 1  -- Only include customers with multiple interactions
+    )
+    SELECT 
+        customer_id,
+        derived_persona,
+        avg_sentiment,
+        sentiment_volatility,
+        customer_summary
+    FROM customer_sentiment_stats
+    WHERE sentiment_volatility IS NOT NULL  -- Ensure we have valid volatility values
+    ORDER BY sentiment_volatility DESC
+    LIMIT 20
+    """
+
+def display_high_risk_customers():
+    """Display high risk customers section with improved visualizations."""
+    st.header("⚠️ High Risk Customers")
+    
+    # Get data
+    result = execute_sql_query(get_high_risk_customers())
+    if result[1]:
+        st.error("Error loading data. Please try again later.")
+        return
+    
+    df = result[0]
+    if df is None or df.empty:
+        st.warning("No high risk customers found.")
+        return
+    
+    # Calculate key metrics
+    total_high_risk = len(df)
+    avg_sentiment = df['AVG_SENTIMENT'].mean()
+    avg_frustration = df['MAX_FRUSTRATION_LEVEL'].mean()
+    
+    # Display key metrics
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("⚠️ Total High Risk Customers", f"{total_high_risk:,}")
+    with col2:
+        st.metric("😐 Average Sentiment", f"{avg_sentiment:.2f}")
+    with col3:
+        st.metric("😠 Average Frustration Level", f"{avg_frustration:.1f}")
+    
+    # Create visualizations
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Sentiment vs Frustration Scatter Plot
+        fig = px.scatter(
+            df,
+            x='MAX_FRUSTRATION_LEVEL',
+            y='AVG_SENTIMENT',
+            color='DERIVED_PERSONA',
+            title='😠 Sentiment vs Frustration Level',
+            labels={
+                'MAX_FRUSTRATION_LEVEL': 'Frustration Level',
+                'AVG_SENTIMENT': 'Average Sentiment',
+                'DERIVED_PERSONA': 'Persona'
+            }
+        )
+        fig.update_layout(
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            showlegend=True
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    
+    with col2:
+        # Primary Concerns Distribution
+        concerns = df['PRIMARY_CONCERN'].value_counts().head(5)
+        fig = px.pie(
+            values=concerns.values,
+            names=concerns.index,
+            title='🔎 Top 5 Primary Concerns',
+            hole=0.4
+        )
+        fig.update_layout(
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            showlegend=True
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    
+    # Customer Details in an expandable section
+    st.subheader("👤 Customer Details")
+    for _, row in df.iterrows():
+        with st.expander(f"Customer {row['CUSTOMER_ID']} - {row['DERIVED_PERSONA']}"):
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown("**Metrics:**")
+                st.write(f"- Sentiment Trend: {row['SENTIMENT_TREND']:.2f}")
+                st.write(f"- Frustration Level: {row['MAX_FRUSTRATION_LEVEL']:.1f}")
+                st.write(f"- Primary Concern: {row['PRIMARY_CONCERN']}")
+            with col2:
+                st.markdown("**Customer Summary:**")
+                st.write(row['CUSTOMER_SUMMARY'])
+
+def display_volatile_customers():
+    """Display customers with volatile sentiment with improved visualizations."""
+    st.header("📈 Customers with Volatile Sentiment")
+    
+    # Get data
+    result = execute_sql_query(get_volatile_customers())
+    if result[1]:
+        st.error("Error loading data. Please try again later.")
+        return
+    
+    df = result[0]
+    if df is None or df.empty:
+        st.warning("No customers with volatile sentiment found.")
+        return
+    
+    # Try to get the volatility and sentiment columns
+    volatility_col = next((col for col in df.columns if 'volatility' in col.lower()), None)
+    sentiment_col = next((col for col in df.columns if 'sentiment' in col.lower() and 'avg' in col.lower()), None)
+    
+    if volatility_col is None or sentiment_col is None:
+        st.error("Could not find required columns in the data.")
+        return
+    
+    # Calculate key metrics
+    avg_volatility = df[volatility_col].mean()
+    avg_sentiment = df[sentiment_col].mean()
+    total_volatile = len(df)
+    
+    # Display key metrics
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("📊 Total Volatile Customers", f"{total_volatile:,}")
+    with col2:
+        st.metric("📈 Average Sentiment Volatility", f"{avg_volatility:.2f}")
+    with col3:
+        st.metric("😐 Average Sentiment", f"{avg_sentiment:.2f}")
+    
+    # Create visualizations
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Sentiment vs Volatility Scatter Plot
+        fig = px.scatter(
+            df,
+            x=volatility_col,
+            y=sentiment_col,
+            color='DERIVED_PERSONA',
+            title='📈 Sentiment vs Volatility',
+            labels={
+                volatility_col: 'Sentiment Volatility',
+                sentiment_col: 'Average Sentiment',
+                'DERIVED_PERSONA': 'Persona'
+            }
+        )
+        fig.update_layout(
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            showlegend=True
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    
+    with col2:
+        # Distribution of Volatility
+        fig = px.histogram(
+            df,
+            x=volatility_col,
+            title='📊 Distribution of Sentiment Volatility',
+            labels={volatility_col: 'Sentiment Volatility'}
+        )
+        fig.update_layout(
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            showlegend=False
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    
+    # Customer Details in an expandable section
+    st.subheader("👥 Customer Details")
+    for _, row in df.iterrows():
+        with st.expander(f"Customer {row['CUSTOMER_ID']} - {row['DERIVED_PERSONA']}"):
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown("**Metrics:**")
+                st.write(f"- Sentiment Volatility: {row[volatility_col]:.2f}")
+                st.write(f"- Average Sentiment: {row[sentiment_col]:.2f}")
+            with col2:
+                st.markdown("**Customer Summary:**")
+                st.write(row['CUSTOMER_SUMMARY'])
+
+def get_filter_options():
+    """Get available options for filters from the database."""
+    queries = {
+        "sentiment": """
+            SELECT DISTINCT overall_sentiment 
+            FROM DBT_CORTEX_LLMS.ANALYTICS.CUSTOMER_PERSONA_SIGNALS 
+            WHERE overall_sentiment IS NOT NULL 
+            ORDER BY overall_sentiment
+        """,
+        "persona": """
+            SELECT DISTINCT derived_persona 
+            FROM DBT_CORTEX_LLMS.ANALYTICS.CUSTOMER_PERSONA_SIGNALS 
+            WHERE derived_persona IS NOT NULL 
+            ORDER BY derived_persona
+        """,
+        "risk": """
+            SELECT DISTINCT churn_risk 
+            FROM DBT_CORTEX_LLMS.ANALYTICS.CUSTOMER_PERSONA_SIGNALS 
+            WHERE churn_risk IS NOT NULL 
+            ORDER BY churn_risk
+        """,
+        "upsell": """
+            SELECT DISTINCT upsell_opportunity 
+            FROM DBT_CORTEX_LLMS.ANALYTICS.CUSTOMER_PERSONA_SIGNALS 
+            WHERE upsell_opportunity IS NOT NULL 
+            ORDER BY upsell_opportunity
+        """
+    }
+    
+    options = {}
+    for key, query in queries.items():
+        result = execute_sql_query(query)
+        if result[1] is None and result[0] is not None and not result[0].empty:
+            # Extract the first column values as a list
+            options[key] = result[0].iloc[:, 0].tolist()
+        else:
+            options[key] = []
+    
+    return options
+
+def apply_filters(base_query, filters):
+    """Apply filters to a base query."""
+    where_clauses = []
+    
+    if filters.get('sentiment'):
+        sentiment_list = "', '".join(filters['sentiment'])
+        where_clauses.append(f"overall_sentiment IN ('{sentiment_list}')")
+    
+    if filters.get('persona'):
+        persona_list = "', '".join(filters['persona'])
+        where_clauses.append(f"derived_persona IN ('{persona_list}')")
+    
+    if filters.get('risk'):
+        risk_list = "', '".join(filters['risk'])
+        where_clauses.append(f"churn_risk IN ('{risk_list}')")
+    
+    if filters.get('upsell'):
+        upsell_list = "', '".join(filters['upsell'])
+        where_clauses.append(f"upsell_opportunity IN ('{upsell_list}')")
+    
+    if where_clauses:
+        if 'WHERE' in base_query:
+            return f"{base_query} AND {' AND '.join(where_clauses)}"
+        else:
+            return f"{base_query} WHERE {' AND '.join(where_clauses)}"
+    
+    return base_query
+
+def get_sentiment_by_risk():
+    """Get distribution of customers by sentiment and risk level."""
+    base_query = """
+    SELECT 
+        churn_risk as risk_level,
+        overall_sentiment,
+        COUNT(*) as total_count
+    FROM DBT_CORTEX_LLMS.ANALYTICS.CUSTOMER_PERSONA_SIGNALS
+    """
+    query = apply_filters(base_query, st.session_state.get('filters', {}))
+    return query + " GROUP BY churn_risk, overall_sentiment ORDER BY churn_risk, overall_sentiment"
+
+def main():
+    """Main function to run the app."""
+    st.title("🔍 Customer Insights Explorer")
+    
+    # Get filter options
+    filter_options = get_filter_options()
+    
+    # Sidebar navigation and filters
+    st.sidebar.title("🧭 Navigation")
+    page = st.sidebar.radio(
+        "Select a view",
+        ["Overview", "High Risk Customers", "Volatile Customers"]
+    )
+    
+    # Add filters to sidebar
+    st.sidebar.title("🔍 Filters")
+    
+    # Add explanations for each category
+    with st.sidebar.expander("📚 Understanding Customer Personas"):
+        st.markdown("""
+        - **Loyal Customers**: Long-term customers with high satisfaction and low churn risk. They consistently show positive sentiment and have a strong relationship with the company.
+        
+        - **At-Risk Customers**: Customers showing signs of dissatisfaction or high churn risk. They may have recent negative experiences or declining engagement.
+        
+        - **Upsell Opportunities**: Satisfied customers with potential for additional purchases. They show interest in more products/services and have positive interactions.
+        
+        - **Frustrated Customers**: Customers experiencing issues or showing high frustration levels. They often have multiple support tickets or negative sentiment.
+        
+        - **Mixed Signals**: Customers with inconsistent behavior patterns and varying satisfaction levels. Their sentiment and engagement fluctuate over time.
+        
+        - **Improving Customers**: Customers showing positive trends in satisfaction and engagement. Their recent interactions show better sentiment than historical ones.
+        
+        - **Neutral Customers**: Customers with stable, moderate satisfaction and engagement levels. They neither show strong positive nor negative sentiment.
+        
+        - **Complex Cases**: Customers with multiple interaction patterns and varied sentiment. They require special attention due to their complex needs.
+        """)
+    
+    with st.sidebar.expander("😊 Understanding Sentiment Levels"):
+        st.markdown("""
+        - **Positive**: Customer shows clear satisfaction and happiness with services/products
+        - **Neutral**: Customer shows neither strong positive nor negative feelings
+        - **Mixed**: Customer shows both positive and negative sentiments in different interactions
+        - **Negative**: Customer expresses dissatisfaction or frustration
+        - **Very Negative**: Customer shows severe dissatisfaction across multiple interactions
+        """)
+    
+    with st.sidebar.expander("⚠️ Understanding Churn Risk Levels"):
+        st.markdown("""
+        - **High**: Significant risk of customer discontinuing services
+          - Multiple negative interactions
+          - Declining usage patterns
+          - Recent complaints or escalations
+        
+        - **Medium**: Moderate risk of churn
+          - Mixed sentiment in recent interactions
+          - Some decline in engagement
+          - Occasional support issues
+        
+        - **Low**: Minimal risk of customer churn
+          - Consistent positive interactions
+          - Stable or increasing usage
+          - Few or no support issues
+        """)
+    
+    with st.sidebar.expander("💡 Understanding Upsell Opportunities"):
+        st.markdown("""
+        - **High**: Strong potential for additional sales
+          - High satisfaction levels
+          - Regular product/service usage
+          - Previous interest in additional features
+        
+        - **Medium**: Moderate upsell potential
+          - Stable satisfaction
+          - Consistent usage patterns
+          - Some interest in new features
+        
+        - **Low**: Limited upsell potential
+          - Recent negative experiences
+          - Declining engagement
+          - No expressed interest in additional services
+        """)
+    
+    # Initialize session state for filters if not exists
+    if 'filters' not in st.session_state:
+        st.session_state.filters = {}
+    
+    # Overall Sentiment filter
+    st.sidebar.subheader("😊 Overall Sentiment")
+    sentiment_filter = st.sidebar.multiselect(
+        "Select sentiment levels",
+        options=filter_options.get('sentiment', []),
+        default=st.session_state.filters.get('sentiment', [])
+    )
+    st.session_state.filters['sentiment'] = sentiment_filter
+    
+    # Customer Persona filter
+    st.sidebar.subheader("👤 Customer Persona")
+    persona_filter = st.sidebar.multiselect(
+        "Select customer personas",
+        options=filter_options.get('persona', []),
+        default=st.session_state.filters.get('persona', [])
+    )
+    st.session_state.filters['persona'] = persona_filter
+    
+    # Churn Risk filter
+    st.sidebar.subheader("⚠️ Churn Risk")
+    risk_filter = st.sidebar.multiselect(
+        "Select risk levels",
+        options=filter_options.get('risk', []),
+        default=st.session_state.filters.get('risk', [])
+    )
+    st.session_state.filters['risk'] = risk_filter
+    
+    # Upsell Opportunity filter
+    st.sidebar.subheader("💰 Upsell Opportunity")
+    upsell_filter = st.sidebar.multiselect(
+        "Select opportunity levels",
+        options=filter_options.get('upsell', []),
+        default=st.session_state.filters.get('upsell', [])
+    )
+    st.session_state.filters['upsell'] = upsell_filter
+    
+    # Clear filters button
+    if st.sidebar.button("Clear All Filters"):
+        st.session_state.filters = {}
+        st.experimental_rerun()
+    
+    # Display selected page
+    if page == "Overview":
+        display_persona_overview()
+    elif page == "High Risk Customers":
+        display_high_risk_customers()
+    elif page == "Volatile Customers":
+        display_volatile_customers()
+
+
+if __name__ == "__main__":
+    main()
