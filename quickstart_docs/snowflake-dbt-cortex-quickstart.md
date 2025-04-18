@@ -19,6 +19,7 @@ Your dbt project will have the following structure:
 ```
 dbt/
 ├── dbt_project.yml          # Project configuration
+├── setup.sql               # Snowflake environment setup
 ├── models/
 │   ├── staging/            # Staging models
 │   │   ├── sources.yml     # Source definitions
@@ -29,12 +30,15 @@ dbt/
 │   │   ├── fact_customer_interactions.sql
 │   │   ├── fact_product_reviews.sql
 │   │   └── fact_support_tickets.sql
-│   └── analysis/          # Analysis models
-│       ├── sentiment_analysis.sql
-│       ├── sentiment_trends.sql
-│       ├── ticket_patterns.sql
-│       ├── insight_summaries.sql
-│       └── customer_persona_signals.sql
+│   ├── analysis/          # Analysis models
+│   │   ├── sentiment_analysis.sql
+│   │   ├── sentiment_trends.sql
+│   │   ├── ticket_patterns.sql
+│   │   ├── insight_summaries.sql
+│   │   └── customer_persona_signals.sql
+│   └── semantic/          # Semantic models for Cortex Analyst
+│       ├── customer_insights.yml
+│       └── business_metrics.yml
 └── docs/                  # Documentation
     └── erd.md            # Entity Relationship Diagram
 ```
@@ -127,63 +131,80 @@ The dataset contains several customer personas (satisfied, frustrated, neutral, 
 
 ### Step 1: Configure Snowflake ❄️
 
-First, let's set up our Snowflake environment:
+First, let's set up our Snowflake environment. Run the following SQL commands from the `setup.sql` file:
 
 ```sql
--- Create a warehouse, database, and schema
 USE ROLE ACCOUNTADMIN;
 
-CREATE OR REPLACE WAREHOUSE CORTEX_WH 
-  WITH WAREHOUSE_SIZE = 'MEDIUM' 
-  AUTO_SUSPEND = 60 
-  AUTO_RESUME = TRUE;
+-- Create role for dbt
+CREATE OR REPLACE ROLE DBT_ROLE;
 
+-- Assign role to ACCOUNTADMIN
+GRANT ROLE DBT_ROLE TO ROLE ACCOUNTADMIN;
+
+-- Create warehouse for dbt
+CREATE OR REPLACE WAREHOUSE CORTEX_WH 
+WITH 
+    WAREHOUSE_SIZE = 'SMALL' 
+    AUTO_SUSPEND = 60
+    AUTO_RESUME = TRUE
+    MIN_CLUSTER_COUNT = 1
+    MAX_CLUSTER_COUNT = 2
+    SCALING_POLICY = 'STANDARD';
+
+-- Create database
 CREATE OR REPLACE DATABASE DBT_CORTEX_LLMS;
 
--- Create schemas for our different layers
-CREATE OR REPLACE SCHEMA DBT_CORTEX_LLMS.RAW;
-CREATE OR REPLACE SCHEMA DBT_CORTEX_LLMS.STAGE;
-CREATE OR REPLACE SCHEMA DBT_CORTEX_LLMS.ANALYTICS;
-
-USE WAREHOUSE CORTEX_WH;
+-- Use the database
 USE DATABASE DBT_CORTEX_LLMS;
-USE SCHEMA RAW;
 
--- Create file format for JSON 
-CREATE OR REPLACE FILE FORMAT DBT_CORTEX_LLMS.RAW.JSON_FORMAT
-  TYPE = 'JSON'
-  STRIP_OUTER_ARRAY = TRUE;
+-- Create schemas
+CREATE SCHEMA IF NOT EXISTS DEV;
+CREATE SCHEMA IF NOT EXISTS STAGE;
+CREATE SCHEMA IF NOT EXISTS ANALYTICS;
+CREATE SCHEMA IF NOT EXISTS SEMANTIC_MODELS;
 
--- Create stages pointing to our public S3 bucket
-CREATE OR REPLACE STAGE DBT_CORTEX_LLMS.RAW.RAW_DATA_STAGE
-  URL = 's3://snowflake-dbt-cortex-quickstart/retail_data/'
-  FILE_FORMAT = DBT_CORTEX_LLMS.RAW.JSON_FORMAT;
-  
+-- Grant necessary privileges to the role
+GRANT USAGE ON DATABASE DBT_CORTEX_LLMS TO ROLE DBT_ROLE;
+GRANT CREATE DATABASE ON ACCOUNT TO ROLE DBT_ROLE;
+GRANT MODIFY ON DATABASE DBT_CORTEX_LLMS TO ROLE DBT_ROLE;
+GRANT MONITOR ON DATABASE DBT_CORTEX_LLMS TO ROLE DBT_ROLE;
+GRANT CREATE SCHEMA ON DATABASE DBT_CORTEX_LLMS TO ROLE DBT_ROLE;
+
+-- Grant schema privileges
+GRANT ALL ON ALL SCHEMAS IN DATABASE DBT_CORTEX_LLMS TO ROLE DBT_ROLE;
+GRANT ALL ON FUTURE SCHEMAS IN DATABASE DBT_CORTEX_LLMS TO ROLE DBT_ROLE;
+
+-- Grant table privileges
+GRANT ALL ON ALL TABLES IN DATABASE DBT_CORTEX_LLMS TO ROLE DBT_ROLE;
+GRANT ALL ON FUTURE TABLES IN DATABASE DBT_CORTEX_LLMS TO ROLE DBT_ROLE;
+
+-- Grant view privileges
+GRANT ALL ON ALL VIEWS IN DATABASE DBT_CORTEX_LLMS TO ROLE DBT_ROLE;
+GRANT ALL ON FUTURE VIEWS IN DATABASE DBT_CORTEX_LLMS TO ROLE DBT_ROLE;
+
+-- Grant warehouse privileges
+GRANT ALL ON WAREHOUSE CORTEX_WH TO ROLE DBT_ROLE;
+
+-- Set the role for this session
+USE ROLE DBT_ROLE;
+USE WAREHOUSE CORTEX_WH;
+USE SCHEMA STAGE;
+
+-- Create file format for JSON data
+CREATE OR REPLACE FILE FORMAT JSON_FORMAT
+    TYPE = 'JSON'
+    STRIP_OUTER_ARRAY = TRUE
+    COMPRESSION = 'AUTO';
+
+-- Create internal stage for seed files
+CREATE OR REPLACE STAGE STAGE.RAW_DATA_STAGE;
+
 -- Create raw tables
-CREATE OR REPLACE TABLE DBT_CORTEX_LLMS.RAW.CUSTOMER_INTERACTIONS (
-  data VARIANT
-);
-
-CREATE OR REPLACE TABLE DBT_CORTEX_LLMS.RAW.PRODUCT_REVIEWS (
-  data VARIANT
-);
-
-CREATE OR REPLACE TABLE DBT_CORTEX_LLMS.RAW.SUPPORT_TICKETS (
-  data VARIANT
-);
-
--- Load data from staged files
-COPY INTO DBT_CORTEX_LLMS.RAW.CUSTOMER_INTERACTIONS
-FROM @DBT_CORTEX_LLMS.RAW.RAW_DATA_STAGE/customer_interactions.json
-FILE_FORMAT = (FORMAT_NAME = DBT_CORTEX_LLMS.RAW.JSON_FORMAT);
-
-COPY INTO DBT_CORTEX_LLMS.RAW.PRODUCT_REVIEWS
-FROM @DBT_CORTEX_LLMS.RAW.RAW_DATA_STAGE/product_reviews.json
-FILE_FORMAT = (FORMAT_NAME = DBT_CORTEX_LLMS.RAW.JSON_FORMAT);
-
-COPY INTO DBT_CORTEX_LLMS.RAW.SUPPORT_TICKETS
-FROM @DBT_CORTEX_LLMS.RAW.RAW_DATA_STAGE/support_tickets.json
-FILE_FORMAT = (FORMAT_NAME = DBT_CORTEX_LLMS.RAW.JSON_FORMAT);
+CREATE OR REPLACE TRANSIENT TABLE STAGE.CUSTOMER_INTERACTIONS (data VARIANT);
+CREATE OR REPLACE TRANSIENT TABLE STAGE.PRODUCT_REVIEWS (data VARIANT);
+CREATE OR REPLACE TRANSIENT TABLE STAGE.SUPPORT_TICKETS (data VARIANT);
+CREATE OR REPLACE TRANSIENT TABLE STAGE.CUSTOMERS (data VARIANT);
 ```
 
 ### Step 2: Configure dbt Project
@@ -196,7 +217,7 @@ name: 'dbt_cortex'
 version: '1.0.0'
 config-version: 2
 
-profile: 'default'
+profile: 'dbt_cortex'
 
 model-paths: ["models"]
 analysis-paths: ["analyses"]
@@ -205,21 +226,33 @@ seed-paths: ["seeds"]
 macro-paths: ["macros"]
 snapshot-paths: ["snapshots"]
 
+target-path: "target"
 clean-targets:
-  - "target"
-  - "dbt_packages"
+    - "target"
+    - "dbt_packages"
 
 models:
   dbt_cortex:
+    +database: DBT_CORTEX_LLMS
     staging:
+      +schema: STAGE
       +materialized: view
-      +schema: stage
     fact:
+      +schema: ANALYTICS
       +materialized: table
-      +schema: analytics
     analysis:
+      +schema: ANALYTICS
       +materialized: table
-      +schema: analytics
+    semantic:
+      +schema: SEMANTIC_MODELS
+      +materialized: table
+
+vars:
+  dbt_cortex_database: DBT_CORTEX_LLMS
+  raw_schema: STAGE
+  analytics_schema: ANALYTICS
+  semantic_schema: SEMANTIC_MODELS
+  snowflake_warehouse: CORTEX_WH
 ```
 
 #### models/staging/sources.yml
@@ -229,33 +262,28 @@ version: 2
 sources:
   - name: raw
     database: DBT_CORTEX_LLMS
-    schema: RAW
+    schema: STAGE
     tables:
       - name: customer_interactions
       - name: product_reviews
       - name: support_tickets
+      - name: customers
 ```
 
 #### models/staging/stg_customer_interactions.sql
 ```sql
-with source as (
-    select 
-        data
-    from {{ source('raw', 'customer_interactions') }}
-),
+-- Staging model for customer interactions
+-- This model extracts and standardizes customer interaction information from the raw JSON data
+-- Fields are cast to appropriate data types and renamed for clarity
 
-staged as (
-    select
-        data:interaction_id::varchar as interaction_id,
-        data:customer_id::varchar as customer_id,
-        TO_TIMESTAMP_NTZ(data:interaction_date::varchar) as interaction_date,
-        data:agent_id::varchar as agent_id,
-        data:interaction_type::varchar as interaction_type,
-        data:interaction_notes::varchar as interaction_notes
-    from source
-)
-
-select * from staged
+SELECT
+    data:interaction_id::VARCHAR AS interaction_id,
+    data:customer_id::VARCHAR AS customer_id,
+    TRY_TO_TIMESTAMP_NTZ(data:interaction_date::VARCHAR) AS interaction_date,
+    data:agent_id::VARCHAR AS agent_id,
+    data:interaction_type::VARCHAR AS interaction_type,
+    data:interaction_notes::VARCHAR AS interaction_notes
+FROM {{ source('raw', 'customer_interactions') }}
 ```
 
 #### models/staging/stg_product_reviews.sql
@@ -421,29 +449,30 @@ Let's enhance our data exploration capabilities by setting up Cortex Analyst for
 
 ```sql
 -- Create a schema for semantic models
-CREATE OR REPLACE SCHEMA RETAIL_ANALYTICS.SEMANTIC_MODELS;
+CREATE OR REPLACE SCHEMA SEMANTIC_MODELS;
 
--- Create a stage for storing the semantic model YAML file
-CREATE OR REPLACE STAGE RETAIL_ANALYTICS.SEMANTIC_MODELS.CUSTOMER_INSIGHTS;
-
--- Upload the semantic model YAML to the stage (you can do this via Snowsight UI)
--- The YAML defines business-friendly metadata about your customer data
+-- Create semantic models for Cortex Analyst
+-- These models define business-friendly metadata about your customer data
 -- allowing natural language queries through Cortex Analyst
 
--- Create a Streamlit in Snowflake app
--- In Snowsight, navigate to Streamlit > Create
--- Name it "Customer Insights Explorer" 
--- Select the CORTEX_WH warehouse
--- Paste the Streamlit code from the customer_insights_explorer.py file
-
--- Ensure the semantic model path in the Streamlit app matches your stage path:
--- SEMANTIC_MODEL_PATH = "RETAIL_ANALYTICS.SEMANTIC_MODELS.CUSTOMER_INSIGHTS/customer_insights.yaml"
-
--- Once configured, the app will allow business users to:
--- 1. Query customer data using natural language
--- 2. Visualize persona distributions and sentiment patterns
--- 3. Identify at-risk customers and upsell opportunities 
--- 4. Explore customer insights without writing SQL
+-- Example semantic model (customer_insights.yml):
+version: 2
+models:
+  - name: customer_insights
+    description: "Customer insights derived from interactions, reviews, and support tickets"
+    columns:
+      - name: customer_id
+        description: "Unique identifier for the customer"
+      - name: sentiment_score
+        description: "Overall sentiment score (-1 to 1)"
+      - name: interaction_count
+        description: "Number of customer interactions"
+      - name: review_rating_avg
+        description: "Average product review rating"
+      - name: ticket_resolution_time
+        description: "Average time to resolve support tickets"
+      - name: customer_segment
+        description: "Customer segment based on behavior and sentiment"
 ```
 
 With this setup, business users can explore customer personas through natural language, making data-driven decisions accessible to your entire organization! 🚀
