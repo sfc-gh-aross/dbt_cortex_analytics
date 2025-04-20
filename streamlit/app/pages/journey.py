@@ -182,16 +182,20 @@ def render_journey_page():
             """
             try:
                 touchpoint_data = execute_query(touchpoint_query)
-                df_touchpoint = pd.DataFrame(touchpoint_data)
+                df_touchpoint = pd.DataFrame(touchpoint_data, columns=[0, 1, 2])
+                
+                # Debug: Print DataFrame info
+                st.write("DataFrame columns:", df_touchpoint.columns.tolist())
+                st.write("DataFrame head:", df_touchpoint.head())
                 
                 # Create bar chart with error bars
                 fig = go.Figure()
                 fig.add_trace(go.Bar(
-                    x=df_touchpoint['source_type'],
-                    y=df_touchpoint['avg_sentiment'],
+                    x=df_touchpoint[0],
+                    y=df_touchpoint[1],
                     error_y=dict(
                         type='data',
-                        array=df_touchpoint['avg_sentiment'] * 0.1
+                        array=df_touchpoint[1] * 0.1
                     ),
                     name='Average Sentiment'
                 ))
