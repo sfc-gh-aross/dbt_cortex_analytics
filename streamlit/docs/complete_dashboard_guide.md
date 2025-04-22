@@ -588,6 +588,23 @@ FROM ANALYTICS.CUSTOMER_BASE cb
 JOIN ANALYTICS.FACT_PRODUCT_REVIEWS pr USING (customer_id);
 ```
 
+## 9. Revenue Analytics
+
+**Description**: Shows revenue trends, customer value, and financial metrics  
+**Visualization**: Multiple charts including line charts, bar charts, and metrics  
+**Why**: Provides financial insights and revenue tracking  
+**SQL Query**:
+```sql
+SELECT 
+    DATE_TRUNC('month', transaction_date) as month,
+    SUM(amount) as total_revenue,
+    COUNT(DISTINCT customer_id) as active_customers,
+    AVG(amount) as avg_transaction_value
+FROM ANALYTICS.FACT_TRANSACTIONS
+GROUP BY month
+ORDER BY month;
+```
+
 ## Visualization Best Practices
 
 Each visualization should include:
