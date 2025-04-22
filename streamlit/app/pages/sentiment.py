@@ -232,6 +232,14 @@ def render_sentiment_page():
                     columns=['customer_id', 'avg_sentiment', 'sentiment_volatility', 'interaction_count']
                 )
                 
+                # Ensure interaction_count is numeric and not empty
+                df_volatility['interaction_count'] = pd.to_numeric(df_volatility['interaction_count'], errors='coerce')
+                df_volatility = df_volatility.dropna(subset=['interaction_count'])
+                
+                if df_volatility.empty:
+                    st.warning("No data available for sentiment volatility visualization")
+                    return
+                
                 # Create scatter plot
                 fig = px.scatter(
                     df_volatility,

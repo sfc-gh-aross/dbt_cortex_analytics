@@ -33,7 +33,7 @@ def render_segmentation_page():
             """
             try:
                 value_data = execute_query(value_query)
-                df_value = pd.DataFrame(value_data)
+                df_value = pd.DataFrame(value_data, columns=['value_segment', 'customer_count', 'avg_value'])
                 
                 # Create violin plot
                 fig = px.violin(
@@ -68,7 +68,7 @@ def render_segmentation_page():
             """
             try:
                 persona_data = execute_query(persona_query)
-                df_persona = pd.DataFrame(persona_data)
+                df_persona = pd.DataFrame(persona_data, columns=['persona', 'customer_count', 'percentage'])
                 
                 # Create pie chart
                 fig = px.pie(
@@ -107,23 +107,31 @@ def render_segmentation_page():
             """
             try:
                 churn_data = execute_query(churn_query)
-                df_churn = pd.DataFrame(churn_data)
+                df_churn = pd.DataFrame(churn_data, columns=['churn_risk', 'customer_count', 'avg_sentiment', 'avg_tickets'])
                 
                 # Create gauge chart
-                fig = go.Figure(go.Indicator(
-                    mode="gauge+number",
-                    value=df_churn[df_churn['churn_risk'] == 'High']['customer_count'].iloc[0],
-                    title={'text': "High Risk Customers"},
-                    gauge={
-                        'axis': {'range': [0, df_churn['customer_count'].sum()]},
-                        'bar': {'color': "red"},
-                        'steps': [
-                            {'range': [0, df_churn[df_churn['churn_risk'] == 'Low']['customer_count'].iloc[0]], 'color': "lightgray"},
-                            {'range': [df_churn[df_churn['churn_risk'] == 'Low']['customer_count'].iloc[0], df_churn[df_churn['churn_risk'] == 'Medium']['customer_count'].iloc[0]], 'color': "gray"}
-                        ]
-                    }
-                ))
-                st.plotly_chart(fig, use_container_width=True)
+                if len(df_churn) > 0:
+                    high_risk_count = df_churn.loc[df_churn['churn_risk'] == 'High', 'customer_count'].values[0] if any(df_churn['churn_risk'] == 'High') else 0
+                    low_risk_count = df_churn.loc[df_churn['churn_risk'] == 'Low', 'customer_count'].values[0] if any(df_churn['churn_risk'] == 'Low') else 0
+                    medium_risk_count = df_churn.loc[df_churn['churn_risk'] == 'Medium', 'customer_count'].values[0] if any(df_churn['churn_risk'] == 'Medium') else 0
+                    total_customers = df_churn['customer_count'].sum()
+                    
+                    fig = go.Figure(go.Indicator(
+                        mode="gauge+number",
+                        value=high_risk_count,
+                        title={'text': "High Risk Customers"},
+                        gauge={
+                            'axis': {'range': [0, total_customers]},
+                            'bar': {'color': "red"},
+                            'steps': [
+                                {'range': [0, low_risk_count], 'color': "lightgray"},
+                                {'range': [low_risk_count, low_risk_count + medium_risk_count], 'color': "gray"}
+                            ]
+                        }
+                    ))
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.warning("No churn risk data available")
             except Exception as e:
                 log_error(e, "Churn risk visualization")
                 st.error("Failed to load churn risk data")
@@ -159,7 +167,7 @@ def render_segmentation_page():
             """
             try:
                 upsell_data = execute_query(upsell_query)
-                df_upsell = pd.DataFrame(upsell_data)
+                df_upsell = pd.DataFrame(upsell_data, columns=['upsell_opportunity', 'customer_count', 'avg_lifetime_value', 'avg_sentiment'])
                 
                 # Create scatter plot with quadrants
                 fig = px.scatter(
@@ -214,11 +222,14 @@ def render_segmentation_page():
             """
             try:
                 correlation_data = execute_query(correlation_query)
-                correlations = correlation_data[0]
+                df_correlations = pd.DataFrame(correlation_data, columns=['value_sentiment_correlation', 'value_ticket_correlation', 'value_rating_correlation'])
+                correlations = df_correlations.iloc[0]
                 
                 # Create correlation heatmap
                 fig = go.Figure(data=go.Heatmap(
-                    z=[[correlations['value_sentiment_correlation'], correlations['value_ticket_correlation'], correlations['value_rating_correlation']]],
+                    z=[[correlations['value_sentiment_correlation'], 
+                        correlations['value_ticket_correlation'], 
+                        correlations['value_rating_correlation']]],
                     x=['Sentiment', 'Ticket Count', 'Review Rating'],
                     y=['Lifetime Value'],
                     colorscale='RdYlGn',

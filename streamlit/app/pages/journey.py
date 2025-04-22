@@ -61,11 +61,11 @@ def render_journey_page():
             st.subheader("Communication Channels")
             channels_query = """
                 SELECT 
-                    INTERACTION_TYPE as interaction_type,
+                    interaction_type,
                     COUNT(*) as interaction_count,
                     ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 2) as percentage
                 FROM ANALYTICS.FACT_CUSTOMER_INTERACTIONS
-                GROUP BY INTERACTION_TYPE
+                GROUP BY interaction_type
                 ORDER BY interaction_count DESC;
             """
             try:
@@ -182,20 +182,16 @@ def render_journey_page():
             """
             try:
                 touchpoint_data = execute_query(touchpoint_query)
-                df_touchpoint = pd.DataFrame(touchpoint_data, columns=[0, 1, 2])
-                
-                # Debug: Print DataFrame info
-                st.write("DataFrame columns:", df_touchpoint.columns.tolist())
-                st.write("DataFrame head:", df_touchpoint.head())
+                df_touchpoint = pd.DataFrame(touchpoint_data, columns=['source_type', 'avg_sentiment', 'interaction_count'])
                 
                 # Create bar chart with error bars
                 fig = go.Figure()
                 fig.add_trace(go.Bar(
-                    x=df_touchpoint[0],
-                    y=df_touchpoint[1],
+                    x=df_touchpoint['source_type'],
+                    y=df_touchpoint['avg_sentiment'],
                     error_y=dict(
                         type='data',
-                        array=df_touchpoint[1] * 0.1
+                        array=df_touchpoint['avg_sentiment'] * 0.1
                     ),
                     name='Average Sentiment'
                 ))
@@ -214,64 +210,47 @@ def render_journey_page():
             # Interaction Type Preferences by Customer Segment
             segment_query = """
                 SELECT 
-                    cb.PERSONA,
-                    ci.INTERACTION_TYPE,
-                    COUNT(*) as INTERACTION_COUNT
+                    cb.persona,
+                    ci.interaction_type,
+                    COUNT(*) as interaction_count
                 FROM ANALYTICS.FACT_CUSTOMER_INTERACTIONS ci
                 JOIN ANALYTICS.CUSTOMER_BASE cb ON ci.customer_id = cb.customer_id
-                GROUP BY cb.PERSONA, ci.INTERACTION_TYPE
-                ORDER BY cb.PERSONA, INTERACTION_COUNT DESC;
+                GROUP BY cb.persona, ci.interaction_type
+                ORDER BY cb.persona, interaction_count DESC;
             """
             try:
                 segment_data = execute_query(segment_query)
-                
-                # Debug: Print raw data and its structure
-                st.write("Raw segment data type:", type(segment_data))
-                st.write("Raw segment data length:", len(segment_data) if segment_data else 0)
-                if segment_data:
-                    st.write("First row of data:", segment_data[0])
-                    st.write("Data keys:", segment_data[0].keys() if segment_data else [])
                 
                 if not segment_data:
                     st.warning("No data returned from the segment query")
                     return
                 
                 # Convert list of dictionaries to DataFrame
-                df_segment = pd.DataFrame(segment_data)
-                
-                # Debug: Print DataFrame info
-                st.write("DataFrame columns:", df_segment.columns.tolist())
-                st.write("DataFrame head:", df_segment.head())
+                df_segment = pd.DataFrame(segment_data, columns=['persona', 'interaction_type', 'interaction_count'])
                 
                 # Create grouped bar chart
                 if not df_segment.empty:
-                    try:
-                        df_segment_grouped = df_segment.groupby(['PERSONA', 'INTERACTION_TYPE'])['INTERACTION_COUNT'].sum().reset_index()
-                        fig = px.bar(
-                            df_segment_grouped,
-                            x='PERSONA',
-                            y='INTERACTION_COUNT',
-                            color='INTERACTION_TYPE',
-                            title='Interaction Type Preferences by Segment',
-                            barmode='group',
-                            labels={
-                                'PERSONA': 'Customer Segment',
-                                'INTERACTION_COUNT': 'Interaction Count',
-                                'INTERACTION_TYPE': 'Interaction Type'
-                            }
-                        )
-                        st.plotly_chart(fig, use_container_width=True)
-                    except Exception as e:
-                        st.error(f"Error creating visualization: {str(e)}")
-                        st.write("DataFrame head:", df_segment.head())
+                    fig = px.bar(
+                        df_segment,
+                        x='interaction_type',
+                        y='interaction_count',
+                        color='persona',
+                        title='Interaction Type Preferences by Customer Segment',
+                        labels={
+                            'interaction_type': 'Interaction Type',
+                            'interaction_count': 'Interaction Count',
+                            'persona': 'Customer Segment'
+                        }
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
                 else:
-                    st.warning("No segment data available")
+                    st.warning("No data available for segment preferences")
             except Exception as e:
                 log_error(e, "Segment preferences visualization")
                 st.error("Failed to load segment preferences data")
         
         with tab3:
-            st.subheader("Customer Interaction Summaries")
+            # Customer Interaction Summaries
             summaries_query = """
                 SELECT 
                     customer_id,
@@ -281,50 +260,48 @@ def render_journey_page():
             """
             try:
                 summaries_data = execute_query(summaries_query)
-                df_summaries = pd.DataFrame(summaries_data)
+                df_summaries = pd.DataFrame(summaries_data, columns=['customer_id', 'customer_summary'])
                 
-                # Create word cloud
-                if not df_summaries.empty and 'customer_summary' in df_summaries.columns:
+                if not df_summaries.empty:
+                    # Create word cloud
                     text = ' '.join(df_summaries['customer_summary'].dropna())
-                    if text.strip():
-                        wordcloud = WordCloud(width=800, height=400, background_color='white').generate(text)
-                        
-                        # Display word cloud
-                        fig, ax = plt.subplots(figsize=(10, 5))
-                        ax.imshow(wordcloud, interpolation='bilinear')
-                        ax.axis('off')
-                        st.pyplot(fig)
-                    else:
-                        st.warning("No summary text available for word cloud")
+                    wordcloud = WordCloud(width=800, height=400, background_color='white').generate(text)
+                    
+                    plt.figure(figsize=(10, 5))
+                    plt.imshow(wordcloud, interpolation='bilinear')
+                    plt.axis('off')
+                    plt.title('Customer Interaction Themes')
+                    st.pyplot(plt)
                 else:
-                    st.warning("No summary data available")
-                
-                # Display summary table
-                st.dataframe(df_summaries)
+                    st.warning("No customer summaries available")
             except Exception as e:
                 log_error(e, "Interaction summaries visualization")
                 st.error("Failed to load interaction summaries data")
         
         with tab4:
+            # Raw Data Display
             raw_data_query = """
                 SELECT 
-                    CUSTOMER_ID as customer_id,
-                    INTERACTION_DATE as interaction_date,
-                    INTERACTION_TYPE as interaction_type,
-                    SOURCE_TYPE as source_type,
-                    SENTIMENT_SCORE as sentiment_score
-                FROM ANALYTICS.SENTIMENT_ANALYSIS
+                    customer_id,
+                    interaction_type,
+                    interaction_date,
+                    sentiment_score
+                FROM ANALYTICS.FACT_CUSTOMER_INTERACTIONS
                 ORDER BY interaction_date DESC
-                LIMIT 1000;
+                LIMIT 100;
             """
             try:
                 raw_data = execute_query(raw_data_query)
-                df_raw = pd.DataFrame(raw_data)
-                st.dataframe(df_raw)
+                df_raw = pd.DataFrame(raw_data, columns=['customer_id', 'interaction_type', 'interaction_date', 'sentiment_score'])
+                
+                if not df_raw.empty:
+                    st.dataframe(df_raw)
+                else:
+                    st.warning("No raw data available")
             except Exception as e:
                 log_error(e, "Raw data display")
                 st.error("Failed to load raw data")
-    
+                
     except Exception as e:
-        log_error(e, "Journey page rendering")
-        st.error("An error occurred while rendering the customer journey page") 
+        log_error(e, "Customer Journey page")
+        st.error("An error occurred while loading the Customer Journey page") 

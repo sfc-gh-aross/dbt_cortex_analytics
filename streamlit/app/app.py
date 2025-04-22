@@ -102,8 +102,8 @@ def main():
             from pages.journey import render_journey_page
             render_journey_page()
         elif page == "Segmentation & Value":
-            from pages.segments import render_segments_page
-            render_segments_page()
+            from pages.segmentation import render_segmentation_page
+            render_segmentation_page()
         elif page == "Insights & Summaries":
             from pages.insights import render_insights_page
             render_insights_page()
