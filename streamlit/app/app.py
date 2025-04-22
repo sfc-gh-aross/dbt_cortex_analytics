@@ -13,6 +13,14 @@ if src_path not in sys.path:
 from src.data.connection import get_snowflake_session
 from src.ui.theme import apply_theme
 from src.utils.logging import setup_logging
+from src.pages import (
+    sentiment,
+    support,
+    reviews,
+    journey,
+    segmentation,
+    insights
+)
 
 # Configure the page
 st.set_page_config(
@@ -90,23 +98,17 @@ def main():
         
         # Load the appropriate page content
         if page == "Sentiment & Experience":
-            from pages.sentiment import render_sentiment_page
-            render_sentiment_page()
+            sentiment.render_sentiment_page()
         elif page == "Support Operations":
-            from pages.support import render_support_page
-            render_support_page()
+            support.render_support_page()
         elif page == "Product Feedback":
-            from pages.reviews import render_reviews_page
-            render_reviews_page()
+            reviews.render_reviews_page()
         elif page == "Customer Journey":
-            from pages.journey import render_journey_page
-            render_journey_page()
+            journey.render_journey_page()
         elif page == "Segmentation & Value":
-            from pages.segmentation import render_segmentation_page
-            render_segmentation_page()
+            segmentation.render_segmentation_page()
         elif page == "Insights & Summaries":
-            from pages.insights import render_insights_page
-            render_insights_page()
+            insights.render_insights_page()
             
     except Exception as e:
         st.error(f"An error occurred: {str(e)}")
