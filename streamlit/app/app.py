@@ -49,25 +49,20 @@ def main():
         if "end_date" not in st.session_state:
             st.session_state.end_date = datetime.now()
         
+        # Create main content area with tabs
+        main_tabs = st.tabs([
+            "😊 Sentiment & Experience",
+            "🛠️ Support Operations",
+            "⭐ Product Feedback",
+            "🛣️ Customer Journey",
+            "🎯 Segmentation & Value"
+        ])
+        
         # Sidebar navigation
         st.sidebar.title("Customer Analytics")
         st.sidebar.markdown("---")
         
-        # Navigation options
-        page = st.sidebar.radio(
-            "Select Workspace",
-            [
-                "Sentiment & Experience",
-                "Support Operations",
-                "Product Feedback",
-                "Customer Journey",
-                "Segmentation & Value",
-                "Insights & Summaries"
-            ]
-        )
-        
         # Global filters
-        st.sidebar.markdown("---")
         st.sidebar.subheader("Global Filters")
         
         # Date range filter
@@ -94,21 +89,20 @@ def main():
         )
         
         # Main content area
-        st.title(f"{page} Workspace")
-        
-        # Load the appropriate page content
-        if page == "Sentiment & Experience":
+        with main_tabs[0]:
             sentiment.render_sentiment_page()
-        elif page == "Support Operations":
+        
+        with main_tabs[1]:
             support.render_support_page()
-        elif page == "Product Feedback":
+        
+        with main_tabs[2]:
             reviews.render_reviews_page()
-        elif page == "Customer Journey":
+        
+        with main_tabs[3]:
             journey.render_journey_page()
-        elif page == "Segmentation & Value":
+        
+        with main_tabs[4]:
             segmentation.render_segmentation_page()
-        elif page == "Insights & Summaries":
-            insights.render_insights_page()
             
     except Exception as e:
         st.error(f"An error occurred: {str(e)}")
