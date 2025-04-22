@@ -5,11 +5,33 @@ import logging
 from functools import lru_cache
 import os
 from dotenv import load_dotenv
+import pandas as pd
+import random
+from datetime import datetime, timedelta
 
 # Load environment variables
 load_dotenv()
 
 logger = logging.getLogger(__name__)
+
+def get_mock_data(query: str) -> list:
+    """Generate mock data for standalone mode."""
+    personas = ['High Value', 'Mid Value', 'Low Value']
+    interaction_types = ['Email', 'Phone', 'Chat', 'Web']
+    
+    if 'FACT_CUSTOMER_INTERACTIONS' in query and 'CUSTOMER_BASE' in query:
+        # Generate mock segment data
+        mock_data = []
+        for persona in personas:
+            for interaction in interaction_types:
+                mock_data.append({
+                    'PERSONA': persona,
+                    'INTERACTION_TYPE': interaction,
+                    'INTERACTION_COUNT': random.randint(50, 500)
+                })
+        return mock_data
+    
+    return []
 
 @st.cache_resource(ttl=3600)
 def get_snowflake_session():
@@ -18,6 +40,10 @@ def get_snowflake_session():
     Returns:
         snowflake.connector.SnowflakeConnection: A cached Snowflake connection
     """
+    if os.getenv("DEPLOYMENT_MODE") == "standalone":
+        logger.info("Running in standalone mode")
+        return None
+        
     try:
         # Get credentials from environment variables
         conn = snowflake.connector.connect(
@@ -47,6 +73,9 @@ def execute_query(query: str, params: dict = None) -> list:
     Returns:
         list: Query results as a list of dictionaries
     """
+    if os.getenv("DEPLOYMENT_MODE") == "standalone":
+        return get_mock_data(query)
+        
     try:
         conn = get_snowflake_session()
         cursor = conn.cursor()

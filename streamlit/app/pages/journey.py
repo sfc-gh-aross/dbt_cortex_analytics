@@ -214,35 +214,56 @@ def render_journey_page():
             # Interaction Type Preferences by Customer Segment
             segment_query = """
                 SELECT 
-                    cb.PERSONA as persona,
-                    ci.INTERACTION_TYPE as interaction_type,
-                    COUNT(*) as interaction_count
+                    cb.PERSONA,
+                    ci.INTERACTION_TYPE,
+                    COUNT(*) as INTERACTION_COUNT
                 FROM ANALYTICS.FACT_CUSTOMER_INTERACTIONS ci
-                JOIN ANALYTICS.CUSTOMER_BASE cb USING (customer_id)
+                JOIN ANALYTICS.CUSTOMER_BASE cb ON ci.customer_id = cb.customer_id
                 GROUP BY cb.PERSONA, ci.INTERACTION_TYPE
-                ORDER BY cb.PERSONA, interaction_count DESC;
+                ORDER BY cb.PERSONA, INTERACTION_COUNT DESC;
             """
             try:
                 segment_data = execute_query(segment_query)
+                
+                # Debug: Print raw data and its structure
+                st.write("Raw segment data type:", type(segment_data))
+                st.write("Raw segment data length:", len(segment_data) if segment_data else 0)
+                if segment_data:
+                    st.write("First row of data:", segment_data[0])
+                    st.write("Data keys:", segment_data[0].keys() if segment_data else [])
+                
+                if not segment_data:
+                    st.warning("No data returned from the segment query")
+                    return
+                
+                # Convert list of dictionaries to DataFrame
                 df_segment = pd.DataFrame(segment_data)
+                
+                # Debug: Print DataFrame info
+                st.write("DataFrame columns:", df_segment.columns.tolist())
+                st.write("DataFrame head:", df_segment.head())
                 
                 # Create grouped bar chart
                 if not df_segment.empty:
-                    df_segment_grouped = df_segment.groupby(['persona', 'interaction_type'])['interaction_count'].sum().reset_index()
-                    fig = px.bar(
-                        df_segment_grouped,
-                        x='persona',
-                        y='interaction_count',
-                        color='interaction_type',
-                        title='Interaction Type Preferences by Segment',
-                        barmode='group',
-                        labels={
-                            'persona': 'Customer Segment',
-                            'interaction_count': 'Interaction Count',
-                            'interaction_type': 'Interaction Type'
-                        }
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
+                    try:
+                        df_segment_grouped = df_segment.groupby(['PERSONA', 'INTERACTION_TYPE'])['INTERACTION_COUNT'].sum().reset_index()
+                        fig = px.bar(
+                            df_segment_grouped,
+                            x='PERSONA',
+                            y='INTERACTION_COUNT',
+                            color='INTERACTION_TYPE',
+                            title='Interaction Type Preferences by Segment',
+                            barmode='group',
+                            labels={
+                                'PERSONA': 'Customer Segment',
+                                'INTERACTION_COUNT': 'Interaction Count',
+                                'INTERACTION_TYPE': 'Interaction Type'
+                            }
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+                    except Exception as e:
+                        st.error(f"Error creating visualization: {str(e)}")
+                        st.write("DataFrame head:", df_segment.head())
                 else:
                     st.warning("No segment data available")
             except Exception as e:

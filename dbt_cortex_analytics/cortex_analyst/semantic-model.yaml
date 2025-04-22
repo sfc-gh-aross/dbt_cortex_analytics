@@ -1,0 +1,656 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+name: customer_insights
+description: >
+  A semantic model for customer insights data incorporating sentiment analysis, churn risk, 
+  and persona identification derived from Snowflake Cortex LLM functions across customer 
+  interactions, product reviews, and support tickets.
+comments: >
+  This model enables business users to analyze customer behavior patterns, identify at-risk
+  relationships, and discover opportunities for improving customer experience and retention.
+
+tables:
+  - name: customer_personas
+    description: >
+      Comprehensive view of customers enriched with AI-derived insights including sentiment
+      analysis, persona classification, churn risk assessment, and upsell opportunity identification.
+      This table combines signals from customer interactions, product reviews, and support tickets
+      to provide a 360-degree view of each customer relationship.
+    base_table:
+      database: RETAIL_ANALYTICS
+      schema: ANALYTICS
+      table: CUSTOMER_PERSONA_SIGNALS
+    primary_key:
+      columns:
+        - customer_id
+    
+    dimensions:
+      - name: customer_id
+        synonyms:
+          - "client id"
+          - "customer number"
+          - "customer identifier"
+          - "account id"
+          - "account number"
+        description: Unique identifier for each customer
+        expr: customer_id
+        data_type: VARCHAR
+        unique: true
+      
+      - name: derived_persona
+        synonyms:
+          - "customer persona"
+          - "customer type"
+          - "customer segment"
+          - "customer category"
+          - "behavior pattern"
+          - "customer profile"
+          - "customer classification"
+        description: >
+          AI-derived classification of customer based on sentiment patterns and support history.
+          Categories include Satisfied, Frustrated, Neutral, Mixed, Improving, and Deteriorating.
+        expr: derived_persona
+        data_type: VARCHAR
+        sample_values:
+          - "Satisfied"
+          - "Frustrated"
+          - "Neutral"
+          - "Mixed"
+          - "Improving"
+          - "Deteriorating"
+        is_enum: true
+
+      - name: overall_sentiment
+        synonyms:
+          - "sentiment category"
+          - "sentiment label"
+          - "emotional tone"
+          - "sentiment classification"
+          - "customer sentiment"
+          - "sentiment bucket"
+        description: >
+          Categorical assessment of customer sentiment based on all interactions.
+          Classifications include Positive, Negative, and Neutral.
+        expr: overall_sentiment
+        data_type: VARCHAR
+        sample_values:
+          - "Positive"
+          - "Negative"
+          - "Neutral"
+        is_enum: true
+
+      - name: churn_risk
+        synonyms:
+          - "attrition risk"
+          - "customer flight risk"
+          - "risk of leaving"
+          - "churn probability"
+          - "retention risk"
+          - "cancellation risk"
+          - "defection risk"
+        description: >
+          Assessment of customer churn likelihood based on sentiment patterns, support
+          ticket history, and interaction trends. Classifications include High, Medium, and Low.
+        expr: churn_risk
+        data_type: VARCHAR
+        sample_values:
+          - "High"
+          - "Medium"
+          - "Low"
+        is_enum: true
+
+      - name: upsell_opportunity
+        synonyms:
+          - "cross-sell potential"
+          - "expansion opportunity"
+          - "growth potential"
+          - "sales opportunity"
+          - "upgrade potential"
+          - "revenue opportunity"
+        description: >
+          Assessment of potential for additional sales based on customer sentiment, 
+          interaction history, and product usage patterns. Classifications include High, Medium, and Low.
+        expr: upsell_opportunity
+        data_type: VARCHAR
+        sample_values:
+          - "High"
+          - "Medium"
+          - "Low"
+        is_enum: true
+
+      - name: primary_concern
+        synonyms:
+          - "main issue"
+          - "key concern"
+          - "primary complaint"
+          - "main problem"
+          - "top issue"
+          - "principal concern"
+        description: >
+          The main issue or concern identified from customer communications,
+          extracted using AI analysis of interaction content.
+        expr: primary_concern
+        data_type: VARCHAR
+
+      - name: customer_summary
+        synonyms:
+          - "customer profile"
+          - "customer overview"
+          - "relationship summary"
+          - "customer brief"
+          - "account summary"
+        description: >
+          AI-generated summary of the customer's relationship, issues, and sentiment
+          based on all available interaction data.
+        expr: customer_summary
+        data_type: VARCHAR
+
+      - name: ticket_count
+        synonyms:
+          - "number of tickets"
+          - "support ticket count"
+          - "total tickets"
+          - "ticket volume"
+          - "case count"
+        description: >
+          Total number of support tickets submitted by the customer.
+        expr: ticket_count
+        data_type: NUMBER
+
+    facts:
+      - name: avg_sentiment
+        synonyms:
+          - "average sentiment"
+          - "mean sentiment score"
+          - "sentiment average"
+          - "sentiment mean"
+        description: >
+          Average sentiment score across all customer interactions, ranging from -1.0 (most negative)
+          to 1.0 (most positive), with 0.0 representing neutral sentiment.
+        expr: avg_sentiment
+        data_type: FLOAT
+
+      - name: sentiment_trend
+        synonyms:
+          - "sentiment change"
+          - "sentiment trajectory"
+          - "sentiment direction"
+          - "sentiment movement"
+          - "sentiment shift"
+        description: >
+          Change in sentiment over time, calculated as the difference between the most recent
+          and earliest sentiment scores. Positive values indicate improving sentiment,
+          negative values indicate deteriorating sentiment.
+        expr: sentiment_trend
+        data_type: FLOAT
+
+      - name: sentiment_volatility
+        synonyms:
+          - "sentiment variation"
+          - "sentiment fluctuation"
+          - "emotional variability"
+          - "sentiment inconsistency"
+          - "sentiment stability"
+        description: >
+          Measure of how much a customer's sentiment varies across interactions.
+          Higher values indicate more inconsistent experiences.
+        expr: sentiment_volatility
+        data_type: FLOAT
+
+      - name: max_frustration_level
+        synonyms:
+          - "peak frustration"
+          - "highest frustration"
+          - "maximum frustration"
+          - "frustration ceiling"
+          - "frustration peak"
+        description: >
+          Highest frustration level detected across all customer interactions,
+          on a scale from 1 to 10 with 10 being most frustrated.
+        expr: max_frustration_level
+        data_type: FLOAT
+
+      - name: avg_rating
+        synonyms:
+          - "average rating"
+          - "mean rating"
+          - "rating average"
+          - "average review score"
+          - "review average"
+        description: >
+          Average product rating given by the customer across all reviews,
+          on a scale from 1 to 5 with 5 being the highest rating.
+        expr: avg_rating
+        data_type: FLOAT
+
+    metrics:
+      - name: high_risk_customer_count
+        synonyms:
+          - "number of high risk customers"
+          - "high churn risk count"
+          - "high risk account count"
+          - "customers at high risk"
+          - "high risk total"
+        description: >
+          Total count of customers classified as having a high risk of churn.
+        expr: COUNT(CASE WHEN churn_risk = 'High' THEN 1 END)
+
+      - name: positive_sentiment_percentage
+        synonyms:
+          - "percent positive sentiment"
+          - "positive sentiment ratio"
+          - "positive sentiment proportion"
+          - "percentage of positive customers"
+        description: >
+          Percentage of customers with an overall positive sentiment classification.
+        expr: (COUNT(CASE WHEN overall_sentiment = 'Positive' THEN 1 END) / COUNT(*)) * 100
+
+      - name: avg_sentiment_score
+        synonyms:
+          - "average sentiment score"
+          - "mean sentiment"
+          - "overall sentiment average"
+          - "sentiment score mean"
+        description: >
+          Average sentiment score across all customers, ranging from -1.0 (most negative)
+          to 1.0 (most positive).
+        expr: AVG(avg_sentiment)
+
+      - name: deteriorating_customer_count
+        synonyms:
+          - "count of deteriorating customers"
+          - "number of declining relationships"
+          - "declining sentiment count"
+          - "customers with worsening sentiment"
+        description: >
+          Count of customers whose sentiment is trending downward (negative sentiment trend).
+        expr: COUNT(CASE WHEN sentiment_trend < 0 THEN 1 END)
+
+      - name: improving_customer_count
+        synonyms:
+          - "count of improving customers"
+          - "number of improving relationships"
+          - "improving sentiment count"
+          - "customers with improving sentiment"
+        description: >
+          Count of customers whose sentiment is trending upward (positive sentiment trend).
+        expr: COUNT(CASE WHEN sentiment_trend > 0 THEN 1 END)
+
+      - name: high_upsell_opportunity_count
+        synonyms:
+          - "number of high upsell opportunities"
+          - "high revenue opportunity count"
+          - "expansion opportunity count"
+        description: >
+          Count of customers identified as having a high potential for upsell or cross-sell.
+        expr: COUNT(CASE WHEN upsell_opportunity = 'High' THEN 1 END)
+
+    filters:
+      - name: high_churn_risk
+        synonyms:
+          - "high risk of churning"
+          - "high attrition risk"
+          - "likely to churn"
+          - "at-risk customers"
+        description: >
+          Filter to identify customers with a high risk of churning.
+        expr: churn_risk = 'High'
+
+      - name: positive_sentiment
+        synonyms:
+          - "positive customers"
+          - "satisfied customers"
+          - "happy customers"
+          - "positive sentiment customers"
+        description: >
+          Filter to identify customers with an overall positive sentiment.
+        expr: overall_sentiment = 'Positive'
+
+      - name: negative_sentiment
+        synonyms:
+          - "negative customers"
+          - "unsatisfied customers"
+          - "unhappy customers"
+          - "negative sentiment customers"
+        description: >
+          Filter to identify customers with an overall negative sentiment.
+        expr: overall_sentiment = 'Negative'
+
+      - name: high_upsell_opportunity
+        synonyms:
+          - "good upsell candidates"
+          - "high expansion potential"
+          - "high growth potential"
+          - "strong upsell opportunities"
+        description: >
+          Filter to identify customers with a high potential for upsell or cross-sell.
+        expr: upsell_opportunity = 'High'
+
+      - name: improving_sentiment
+        synonyms:
+          - "sentiment improving"
+          - "positive trend"
+          - "getting happier"
+          - "improving customers"
+        description: >
+          Filter to identify customers whose sentiment is trending upward.
+        expr: sentiment_trend > 0.2
+
+      - name: deteriorating_sentiment
+        synonyms:
+          - "sentiment worsening"
+          - "negative trend"
+          - "getting unhappier"
+          - "deteriorating customers"
+        description: >
+          Filter to identify customers whose sentiment is trending downward.
+        expr: sentiment_trend < -0.2
+
+      - name: high_ticket_volume
+        synonyms:
+          - "many support tickets"
+          - "high support volume"
+          - "frequent support cases"
+        description: >
+          Filter to identify customers with a high number of support tickets.
+        expr: ticket_count > 3
+
+      - name: frustrated_persona
+        synonyms:
+          - "frustrated customers"
+          - "unhappy customer type"
+          - "frustrated segment"
+        description: >
+          Filter for customers classified with the 'Frustrated' persona.
+        expr: derived_persona = 'Frustrated'
+
+      - name: satisfied_persona
+        synonyms:
+          - "satisfied customers"
+          - "happy customer type"
+          - "satisfied segment"
+        description: >
+          Filter for customers classified with the 'Satisfied' persona.
+        expr: derived_persona = 'Satisfied'
+
+verified_queries:
+  - name: high_risk_customers
+    question: Who are my high-risk customers?
+    verified_at: 1710343762
+    verified_by: Data Science Team
+    use_as_onboarding_question: true
+    expr: >
+      SELECT customer_id, derived_persona, avg_sentiment, sentiment_trend, max_frustration_level, 
+      primary_concern, customer_summary
+      FROM RETAIL_ANALYTICS.ANALYTICS.CUSTOMER_PERSONA_SIGNALS
+      WHERE churn_risk = 'High'
+      ORDER BY max_frustration_level DESC, sentiment_trend ASC
+
+  - name: customer_persona_distribution
+    question: What is the distribution of customer personas?
+    verified_at: 1710343790
+    verified_by: Data Science Team
+    use_as_onboarding_question: true
+    expr: >
+      SELECT derived_persona, COUNT(*) as customer_count
+      FROM RETAIL_ANALYTICS.ANALYTICS.CUSTOMER_PERSONA_SIGNALS
+      GROUP BY derived_persona
+      ORDER BY customer_count DESC
+
+  - name: frustrated_customers_with_high_ticket_volume
+    question: Show me frustrated customers with many support tickets
+    verified_at: 1710343823
+    verified_by: Customer Success Team
+    expr: >
+      SELECT customer_id, max_frustration_level, ticket_count, primary_concern, customer_summary
+      FROM RETAIL_ANALYTICS.ANALYTICS.CUSTOMER_PERSONA_SIGNALS
+      WHERE derived_persona = 'Frustrated' AND ticket_count > 2
+      ORDER BY max_frustration_level DESC, ticket_count DESC
+
+  - name: sentiment_trends_by_persona
+    question: What are the sentiment trends for each customer persona?
+    verified_at: 1710343860
+    verified_by: Marketing Team
+    expr: >
+      SELECT derived_persona, 
+             AVG(avg_sentiment) as average_sentiment,
+             AVG(sentiment_trend) as average_trend,
+             AVG(sentiment_volatility) as average_volatility
+      FROM RETAIL_ANALYTICS.ANALYTICS.CUSTOMER_PERSONA_SIGNALS
+      GROUP BY derived_persona
+      ORDER BY average_sentiment DESC
+
+  - name: upsell_opportunities
+    question: Who are the best customers for upsell opportunities?
+    verified_at: 1710343899
+    verified_by: Sales Team
+    use_as_onboarding_question: true
+    expr: >
+      SELECT customer_id, derived_persona, avg_sentiment, avg_rating, customer_summary
+      FROM RETAIL_ANALYTICS.ANALYTICS.CUSTOMER_PERSONA_SIGNALS
+      WHERE upsell_opportunity = 'High'
+      ORDER BY avg_sentiment DESC, avg_rating DESC
+
+  - name: negative_trending_sentiment
+    question: Which customers have deteriorating sentiment?
+    verified_at: 1710343929
+    verified_by: Customer Success Team
+    expr: >
+      SELECT customer_id, derived_persona, avg_sentiment, sentiment_trend, 
+             max_frustration_level, primary_concern
+      FROM RETAIL_ANALYTICS.ANALYTICS.CUSTOMER_PERSONA_SIGNALS
+      WHERE sentiment_trend < -0.2
+      ORDER BY sentiment_trend ASC
+
+  - name: count_by_sentiment_and_risk
+    question: How many customers do we have by sentiment and churn risk?
+    verified_at: 1710343963
+    verified_by: Product Team
+    expr: >
+      SELECT overall_sentiment, churn_risk, COUNT(*) as customer_count
+      FROM RETAIL_ANALYTICS.ANALYTICS.CUSTOMER_PERSONA_SIGNALS
+      GROUP BY overall_sentiment, churn_risk
+      ORDER BY overall_sentiment, churn_risk
+
+  - name: customers_with_pricing_concerns
+    question: Which customers have mentioned price or pricing concerns?
+    verified_at: 1710343989
+    verified_by: Pricing Team
+    expr: >
+      SELECT customer_id, derived_persona, churn_risk, overall_sentiment, 
+             primary_concern, customer_summary
+      FROM RETAIL_ANALYTICS.ANALYTICS.CUSTOMER_PERSONA_SIGNALS
+      WHERE LOWER(primary_concern) LIKE '%price%' 
+         OR LOWER(primary_concern) LIKE '%cost%'
+         OR LOWER(primary_concern) LIKE '%expensive%'
+         OR LOWER(primary_concern) LIKE '%pricing%'
+      ORDER BY churn_risk, overall_sentiment
+
+  - name: most_volatile_customers
+    question: Which customers have the most inconsistent sentiment?
+    verified_at: 1710344025
+    verified_by: Customer Experience Team
+    expr: >
+      SELECT customer_id, derived_persona, avg_sentiment, sentiment_volatility, 
+             customer_summary
+      FROM RETAIL_ANALYTICS.ANALYTICS.CUSTOMER_PERSONA_SIGNALS
+      ORDER BY sentiment_volatility DESC
+      LIMIT 20
+
+  - name: high_frustration_level_customers
+    question: Which customers have the highest frustration levels?
+    verified_at: 1710344063
+    verified_by: Support Team Lead
+    expr: >
+      SELECT customer_id, derived_persona, churn_risk, max_frustration_level, 
+             primary_concern, customer_summary
+      FROM RETAIL_ANALYTICS.ANALYTICS.CUSTOMER_PERSONA_SIGNALS
+      WHERE max_frustration_level > 7
+      ORDER BY max_frustration_level DESC

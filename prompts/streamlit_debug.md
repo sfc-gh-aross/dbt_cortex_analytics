@@ -1,0 +1,2 @@
+Prompt:
+Run the Streamlit app using streamlit run /streamlit/app/app.py, loading the .env file if needed. Monitor for any terminal errors, including those triggered by UI interactions—not just on initial load. For each error, analyze the cause, apply a fix, and rerun the app. Repeat this process until all errors are resolved and the app runs error-free.
