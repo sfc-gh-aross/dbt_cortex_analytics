@@ -267,11 +267,14 @@ def render_journey_page():
                     text = ' '.join(df_summaries['customer_summary'].dropna())
                     wordcloud = WordCloud(width=800, height=400, background_color='white').generate(text)
                     
+                    # Create a new figure
                     plt.figure(figsize=(10, 5))
-                    plt.imshow(wordcloud, interpolation='bilinear')
+                    plt.clf()  # Clear the current figure
+                    plt.imshow(wordcloud.to_array())
                     plt.axis('off')
                     plt.title('Customer Interaction Themes')
                     st.pyplot(plt)
+                    plt.close()  # Close the figure to free memory
                 else:
                     st.warning("No customer summaries available")
             except Exception as e:

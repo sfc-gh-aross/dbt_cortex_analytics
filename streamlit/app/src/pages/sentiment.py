@@ -6,8 +6,19 @@ from datetime import datetime, timedelta
 from src.data.connection import execute_query
 from src.utils.logging import log_query_execution, log_error
 from src.utils.ui import LoadingState, handle_error, show_empty_state, show_error
+from src.utils.ui_enhanced import (
+    with_tooltip,
+    EnhancedLoadingState,
+    show_toast,
+    enhanced_dataframe,
+    with_loading_and_feedback
+)
 
-@handle_error
+@with_loading_and_feedback(
+    message="Fetching sentiment data...",
+    success_message=None,
+    error_message="Failed to load sentiment data"
+)
 def get_sentiment_data():
     """Fetch sentiment distribution data."""
     sentiment_query = """
@@ -106,16 +117,23 @@ def get_sentiment_volatility():
 def render_sentiment_page():
     """Render the Sentiment & Experience workspace."""
     try:
-        # Page header
-        st.header("Sentiment & Experience Analytics")
+        # Page header with tooltip
+        @with_tooltip("Analyze customer sentiment across different interaction types and time periods")
+        def render_header():
+            st.header("Sentiment & Experience Analytics")
+        render_header()
         
         # Create three columns for key metrics
         col1, col2, col3 = st.columns(3)
         
         # Overall Sentiment Distribution
         with col1:
-            st.subheader("Overall Sentiment")
-            with LoadingState("Loading sentiment distribution..."):
+            @with_tooltip("Distribution of customer sentiment across all interactions")
+            def render_sentiment_distribution():
+                st.subheader("Overall Sentiment")
+            render_sentiment_distribution()
+            
+            with EnhancedLoadingState("Loading sentiment distribution...") as loader:
                 df_sentiment = get_sentiment_data()
                 if df_sentiment is not None and not df_sentiment.empty:
                     df_sentiment['count'] = pd.to_numeric(df_sentiment['count'])
@@ -137,8 +155,12 @@ def render_sentiment_page():
         
         # Sentiment Trends
         with col2:
-            st.subheader("Sentiment Trends")
-            with LoadingState("Loading sentiment trends..."):
+            @with_tooltip("Track how customer sentiment changes over time")
+            def render_sentiment_trends():
+                st.subheader("Sentiment Trends")
+            render_sentiment_trends()
+            
+            with EnhancedLoadingState("Loading sentiment trends...") as loader:
                 df_trends = get_sentiment_trends()
                 if df_trends is not None and not df_trends.empty:
                     fig = px.line(
@@ -158,8 +180,12 @@ def render_sentiment_page():
         
         # Sentiment by Interaction Type
         with col3:
-            st.subheader("Sentiment by Type")
-            with LoadingState("Loading sentiment by type..."):
+            @with_tooltip("Compare sentiment across different types of customer interactions")
+            def render_sentiment_by_type():
+                st.subheader("Sentiment by Type")
+            render_sentiment_by_type()
+            
+            with EnhancedLoadingState("Loading sentiment by type...") as loader:
                 df_type = get_sentiment_by_type()
                 if df_type is not None and not df_type.empty:
                     fig = px.bar(
@@ -181,7 +207,10 @@ def render_sentiment_page():
         
         # Detailed Analysis Section
         st.markdown("---")
-        st.subheader("Detailed Analysis")
+        @with_tooltip("Explore detailed sentiment analysis and correlations")
+        def render_detailed_analysis():
+            st.subheader("Detailed Analysis")
+        render_detailed_analysis()
         
         # Create tabs for different analyses
         tab1, tab2, tab3 = st.tabs([
@@ -191,7 +220,7 @@ def render_sentiment_page():
         ])
         
         with tab1:
-            with LoadingState("Loading correlation data..."):
+            with EnhancedLoadingState("Loading correlation data...") as loader:
                 df_correlation = get_sentiment_correlation()
                 if df_correlation is not None and not df_correlation.empty:
                     fig = go.Figure()
@@ -222,7 +251,7 @@ def render_sentiment_page():
                     show_empty_state("No correlation data available")
         
         with tab2:
-            with LoadingState("Loading volatility data..."):
+            with EnhancedLoadingState("Loading volatility data...") as loader:
                 df_volatility = get_sentiment_volatility()
                 if df_volatility is not None and not df_volatility.empty:
                     df_volatility['interaction_count'] = pd.to_numeric(df_volatility['interaction_count'], errors='coerce')
@@ -244,13 +273,17 @@ def render_sentiment_page():
                     show_empty_state("No volatility data available")
         
         with tab3:
-            with LoadingState("Loading raw data..."):
+            with EnhancedLoadingState("Loading raw data...") as loader:
                 df_raw = get_sentiment_data()
                 if df_raw is not None and not df_raw.empty:
-                    st.dataframe(df_raw)
+                    enhanced_dataframe(
+                        df_raw,
+                        height=400,
+                        use_container_width=True
+                    )
                 else:
                     show_empty_state("No raw data available")
                     
     except Exception as e:
-        show_error(f"An error occurred while rendering the sentiment page: {str(e)}")
+        show_toast(f"An error occurred while rendering the sentiment page: {str(e)}", "error")
         log_error(e, "Sentiment page rendering") 

@@ -8,7 +8,6 @@
 
 ## 2. Interactive Elements & Feedback
 - Add tooltips to explain complex metrics or filters using `st.tooltip()`
-- Implement a more sophisticated loading state system with progress bars for long-running operations
 - Add success/error notifications using `st.toast()` for important actions
 - Create interactive data tables with sorting and filtering capabilities
 
