@@ -5,19 +5,83 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 from src.data.connection import execute_query
 from src.utils.logging import log_query_execution, log_error
+from typing import Dict
 
-def render_segmentation_page():
-    """Render the Segmentation & Value workspace."""
+def render_segmentation_page(active_filters: Dict):
+    """Render the segmentation and value page with applied filters."""
+    st.title("Segmentation & Value Analysis")
+    
+    # Display active filters summary
+    st.markdown("### Applied Filters")
+    filter_cols = st.columns(3)
+    
+    with filter_cols[0]:
+        if "date_range" in active_filters:
+            start_date, end_date = active_filters["date_range"]
+            st.metric("Date Range", f"{start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
+    
+    with filter_cols[1]:
+        if "personas" in active_filters:
+            personas = active_filters["personas"]
+            st.metric("Customer Personas", ", ".join(personas) if personas else "All")
+    
+    with filter_cols[2]:
+        if "channels" in active_filters:
+            channels = active_filters["channels"]
+            st.metric("Channels", ", ".join(channels) if channels else "All")
+    
+    # Main content
+    st.markdown("---")
+    
+    # Example segmentation metrics (replace with actual data)
+    metric_cols = st.columns(4)
+    with metric_cols[0]:
+        st.metric("Total Segments", "8", "+2")
+    with metric_cols[1]:
+        st.metric("Average CLV", "$1,250", "+$150")
+    with metric_cols[2]:
+        st.metric("Segment Growth", "15%", "+3%")
+    with metric_cols[3]:
+        st.metric("Retention Rate", "85%", "+5%")
+    
+    # Example segment distribution (replace with actual data)
+    st.markdown("### Segment Distribution")
+    segment_data = pd.DataFrame({
+        'Segment': ["High Value", "Medium Value", "Low Value", "At Risk"],
+        'Customers': [500, 1000, 1500, 200]
+    })
+    st.bar_chart(segment_data.set_index('Segment'))
+    
+    # Example value trends (replace with actual data)
+    st.markdown("### Customer Value Trends")
+    if "date_range" in active_filters:
+        start_date, end_date = active_filters["date_range"]
+        date_range = pd.date_range(start=start_date, end=end_date, freq='D')
+        clv = [1000, 1050, 1100, 1150, 1200, 1250, 1300] * (len(date_range) // 7 + 1)
+        clv = clv[:len(date_range)]  # Ensure same length
+        
+        value_data = pd.DataFrame({
+            'Date': date_range,
+            'Average CLV': clv
+        })
+        st.line_chart(value_data.set_index('Date'))
+
     try:
         # Page header
         st.header("Segmentation & Value Analytics")
+        st.markdown("Analyze customer segments and their value distribution")
         
-        # Create three columns for key metrics
-        col1, col2, col3 = st.columns(3)
+        # Key Metrics Section
+        st.subheader("Key Metrics")
         
-        # Customer Lifetime Value Distribution
-        with col1:
-            st.subheader("Lifetime Value")
+        # Create tabs for different analyses
+        tab1, tab2, tab3 = st.tabs([
+            "Value Distribution",
+            "Churn Risk",
+            "Raw Data"
+        ])
+        
+        with tab1:
             value_query = """
                 SELECT 
                     CASE 
@@ -54,48 +118,13 @@ def render_segmentation_page():
                 log_error(e, "Lifetime value visualization")
                 st.error("Failed to load lifetime value data")
         
-        # Customer Persona Distribution
-        with col2:
-            st.subheader("Persona Distribution")
-            persona_query = """
-                SELECT 
-                    persona,
-                    COUNT(*) as customer_count,
-                    ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 2) as percentage
-                FROM ANALYTICS.CUSTOMER_BASE
-                GROUP BY persona
-                ORDER BY customer_count DESC;
-            """
-            try:
-                persona_data = execute_query(persona_query)
-                df_persona = pd.DataFrame(persona_data, columns=['persona', 'customer_count', 'percentage'])
-                
-                # Create pie chart
-                fig = px.pie(
-                    df_persona,
-                    values='customer_count',
-                    names='persona',
-                    title='Customer Persona Distribution',
-                    labels={
-                        'persona': 'Persona',
-                        'customer_count': 'Customer Count',
-                        'percentage': 'Percentage'
-                    }
-                )
-                st.plotly_chart(fig, use_container_width=True)
-            except Exception as e:
-                log_error(e, "Persona distribution visualization")
-                st.error("Failed to load persona distribution data")
-        
-        # Churn Risk Indicators
-        with col3:
-            st.subheader("Churn Risk")
+        with tab2:
             churn_query = """
                 SELECT 
                     churn_risk,
                     COUNT(*) as customer_count,
-                    ROUND(AVG(avg_sentiment), 3) as avg_sentiment,
-                    ROUND(AVG(ticket_count), 2) as avg_tickets
+                    ROUND(AVG(avg_sentiment), 2) as avg_sentiment,
+                    ROUND(AVG(ticket_count), 1) as avg_tickets
                 FROM ANALYTICS.CUSTOMER_PERSONA_SIGNALS
                 GROUP BY churn_risk
                 ORDER BY 
@@ -109,166 +138,46 @@ def render_segmentation_page():
                 churn_data = execute_query(churn_query)
                 df_churn = pd.DataFrame(churn_data, columns=['churn_risk', 'customer_count', 'avg_sentiment', 'avg_tickets'])
                 
-                # Create gauge chart
-                if len(df_churn) > 0:
-                    high_risk_count = df_churn.loc[df_churn['churn_risk'] == 'High', 'customer_count'].values[0] if any(df_churn['churn_risk'] == 'High') else 0
-                    low_risk_count = df_churn.loc[df_churn['churn_risk'] == 'Low', 'customer_count'].values[0] if any(df_churn['churn_risk'] == 'Low') else 0
-                    medium_risk_count = df_churn.loc[df_churn['churn_risk'] == 'Medium', 'customer_count'].values[0] if any(df_churn['churn_risk'] == 'Medium') else 0
-                    total_customers = df_churn['customer_count'].sum()
-                    
-                    fig = go.Figure(go.Indicator(
-                        mode="gauge+number",
-                        value=high_risk_count,
-                        title={'text': "High Risk Customers"},
-                        gauge={
-                            'axis': {'range': [0, total_customers]},
-                            'bar': {'color': "red"},
-                            'steps': [
-                                {'range': [0, low_risk_count], 'color': "lightgray"},
-                                {'range': [low_risk_count, low_risk_count + medium_risk_count], 'color': "gray"}
-                            ]
-                        }
-                    ))
-                    st.plotly_chart(fig, use_container_width=True)
-                else:
-                    st.warning("No churn risk data available")
+                # Create bar chart
+                fig = px.bar(
+                    df_churn,
+                    x='churn_risk',
+                    y=['customer_count'],
+                    title='Customer Distribution by Churn Risk',
+                    labels={
+                        'churn_risk': 'Churn Risk Level',
+                        'value': 'Number of Customers',
+                        'variable': 'Metric'
+                    }
+                )
+                st.plotly_chart(fig, use_container_width=True)
             except Exception as e:
                 log_error(e, "Churn risk visualization")
                 st.error("Failed to load churn risk data")
         
-        # Detailed Analysis Section
-        st.markdown("---")
-        st.subheader("Detailed Analysis")
-        
-        # Create tabs for different analyses
-        tab1, tab2, tab3 = st.tabs([
-            "Upsell Opportunities",
-            "Value Correlations",
-            "Raw Data"
-        ])
-        
-        with tab1:
-            # Upsell Opportunity Identification
-            upsell_query = """
-                SELECT 
-                    upsell_opportunity,
-                    COUNT(*) as customer_count,
-                    ROUND(AVG(lifetime_value), 2) as avg_lifetime_value,
-                    ROUND(AVG(avg_sentiment), 3) as avg_sentiment
-                FROM ANALYTICS.CUSTOMER_PERSONA_SIGNALS cps
-                JOIN ANALYTICS.CUSTOMER_BASE cb USING (customer_id)
-                GROUP BY upsell_opportunity
-                ORDER BY 
-                    CASE upsell_opportunity
-                        WHEN 'High' THEN 1
-                        WHEN 'Medium' THEN 2
-                        WHEN 'Low' THEN 3
-                    END;
-            """
-            try:
-                upsell_data = execute_query(upsell_query)
-                df_upsell = pd.DataFrame(upsell_data, columns=['upsell_opportunity', 'customer_count', 'avg_lifetime_value', 'avg_sentiment'])
-                
-                # Create scatter plot with quadrants
-                fig = px.scatter(
-                    df_upsell,
-                    x='avg_lifetime_value',
-                    y='avg_sentiment',
-                    size='customer_count',
-                    color='upsell_opportunity',
-                    title='Upsell Opportunity vs. Current Value',
-                    labels={
-                        'avg_lifetime_value': 'Current Lifetime Value',
-                        'avg_sentiment': 'Average Sentiment',
-                        'customer_count': 'Customer Count',
-                        'upsell_opportunity': 'Upsell Opportunity'
-                    }
-                )
-                
-                # Add quadrant lines
-                fig.add_shape(
-                    type="line",
-                    x0=df_upsell['avg_lifetime_value'].mean(),
-                    y0=df_upsell['avg_sentiment'].min(),
-                    x1=df_upsell['avg_lifetime_value'].mean(),
-                    y1=df_upsell['avg_sentiment'].max(),
-                    line=dict(color="gray", width=1, dash="dash")
-                )
-                fig.add_shape(
-                    type="line",
-                    x0=df_upsell['avg_lifetime_value'].min(),
-                    y0=df_upsell['avg_sentiment'].mean(),
-                    x1=df_upsell['avg_lifetime_value'].max(),
-                    y1=df_upsell['avg_sentiment'].mean(),
-                    line=dict(color="gray", width=1, dash="dash")
-                )
-                
-                st.plotly_chart(fig, use_container_width=True)
-            except Exception as e:
-                log_error(e, "Upsell opportunity visualization")
-                st.error("Failed to load upsell opportunity data")
-        
-        with tab2:
-            # Value vs. Sentiment Correlation
-            correlation_query = """
-                SELECT 
-                    CORR(cb.lifetime_value, cps.avg_sentiment) as value_sentiment_correlation,
-                    CORR(cb.lifetime_value, tp.ticket_count) as value_ticket_correlation,
-                    CORR(cb.lifetime_value, pr.review_rating) as value_rating_correlation
-                FROM ANALYTICS.CUSTOMER_BASE cb
-                JOIN ANALYTICS.CUSTOMER_PERSONA_SIGNALS cps USING (customer_id)
-                JOIN ANALYTICS.TICKET_PATTERNS tp USING (customer_id)
-                JOIN ANALYTICS.FACT_PRODUCT_REVIEWS pr USING (customer_id);
-            """
-            try:
-                correlation_data = execute_query(correlation_query)
-                df_correlations = pd.DataFrame(correlation_data, columns=['value_sentiment_correlation', 'value_ticket_correlation', 'value_rating_correlation'])
-                correlations = df_correlations.iloc[0]
-                
-                # Create correlation heatmap
-                fig = go.Figure(data=go.Heatmap(
-                    z=[[correlations['value_sentiment_correlation'], 
-                        correlations['value_ticket_correlation'], 
-                        correlations['value_rating_correlation']]],
-                    x=['Sentiment', 'Ticket Count', 'Review Rating'],
-                    y=['Lifetime Value'],
-                    colorscale='RdYlGn',
-                    zmin=-1,
-                    zmax=1
-                ))
-                
-                fig.update_layout(
-                    title='Value Correlation Analysis',
-                    xaxis_title='Metric',
-                    yaxis_title='Lifetime Value'
-                )
-                st.plotly_chart(fig, use_container_width=True)
-            except Exception as e:
-                log_error(e, "Value correlation visualization")
-                st.error("Failed to load value correlation data")
-        
         with tab3:
-            raw_data_query = """
+            raw_query = """
                 SELECT 
-                    customer_id,
-                    persona,
-                    lifetime_value,
-                    churn_risk,
-                    upsell_opportunity,
-                    avg_sentiment
-                FROM ANALYTICS.CUSTOMER_BASE cb
-                JOIN ANALYTICS.CUSTOMER_PERSONA_SIGNALS cps USING (customer_id)
-                ORDER BY lifetime_value DESC
+                    cps.customer_id,
+                    cb.persona,
+                    cb.lifetime_value,
+                    cps.churn_risk,
+                    cps.upsell_opportunity,
+                    cps.avg_sentiment,
+                    cps.ticket_count
+                FROM ANALYTICS.CUSTOMER_PERSONA_SIGNALS cps
+                JOIN ANALYTICS.CUSTOMER_BASE cb ON cps.customer_id = cb.customer_id
+                ORDER BY cb.lifetime_value DESC
                 LIMIT 1000;
             """
             try:
-                raw_data = execute_query(raw_data_query)
+                raw_data = execute_query(raw_query)
                 df_raw = pd.DataFrame(raw_data)
                 st.dataframe(df_raw)
             except Exception as e:
                 log_error(e, "Raw data display")
                 st.error("Failed to load raw data")
-    
+                
     except Exception as e:
-        log_error(e, "Segmentation page rendering")
-        st.error("An error occurred while rendering the segmentation and value page") 
+        st.error(f"An error occurred: {str(e)}")
+        log_error(e, "Segmentation page rendering") 

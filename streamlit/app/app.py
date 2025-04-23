@@ -13,6 +13,7 @@ if src_path not in sys.path:
 from src.data.connection import get_snowflake_session
 from src.ui.theme import apply_theme
 from src.utils.logging import setup_logging
+from src.ui.filters import FilterManager
 from src.pages import (
     sentiment,
     support,
@@ -49,6 +50,9 @@ def main():
         if "end_date" not in st.session_state:
             st.session_state.end_date = datetime.now()
         
+        # Initialize filter manager
+        filter_manager = FilterManager()
+        
         # Create main content area with tabs
         main_tabs = st.tabs([
             "😊 Sentiment & Experience",
@@ -62,7 +66,7 @@ def main():
         st.sidebar.title("Customer Analytics")
         st.sidebar.markdown("---")
         
-        # Global filters
+        # Global filters section
         st.sidebar.subheader("Global Filters")
         
         # Date range filter
@@ -71,38 +75,52 @@ def main():
             value=(st.session_state.start_date, st.session_state.end_date),
             key="date_range"
         )
+        filter_manager.update_filter("date_range", date_range)
         
-        # Persona filter
+        # Persona filter with search
+        persona_options = ["All", "Enterprise", "SMB", "Startup", "Individual"]
+        persona_search = st.sidebar.text_input("Search Personas", key="persona_search")
+        filtered_personas = [p for p in persona_options if persona_search.lower() in p.lower()]
         personas = st.sidebar.multiselect(
             "Customer Personas",
-            options=["All", "Enterprise", "SMB", "Startup", "Individual"],
+            options=filtered_personas,
             default=["All"],
             key="personas"
         )
+        filter_manager.update_filter("personas", personas)
         
-        # Channel filter
+        # Channel filter with search
+        channel_options = ["All", "Email", "Chat", "Phone", "Social"]
+        channel_search = st.sidebar.text_input("Search Channels", key="channel_search")
+        filtered_channels = [c for c in channel_options if channel_search.lower() in c.lower()]
         channels = st.sidebar.multiselect(
             "Channels",
-            options=["All", "Email", "Chat", "Phone", "Social"],
+            options=filtered_channels,
             default=["All"],
             key="channels"
         )
+        filter_manager.update_filter("channels", channels)
+        
+        # Add filter summary and preset management
+        st.sidebar.markdown("---")
+        filter_manager.render_filter_summary()
+        filter_manager.render_preset_management()
         
         # Main content area
         with main_tabs[0]:
-            sentiment.render_sentiment_page()
+            sentiment.render_sentiment_page(filter_manager.get_active_filters())
         
         with main_tabs[1]:
-            support.render_support_page()
+            support.render_support_page(filter_manager.get_active_filters())
         
         with main_tabs[2]:
-            reviews.render_reviews_page()
+            reviews.render_reviews_page(filter_manager.get_active_filters())
         
         with main_tabs[3]:
-            journey.render_journey_page()
+            journey.render_journey_page(filter_manager.get_active_filters())
         
         with main_tabs[4]:
-            segmentation.render_segmentation_page()
+            segmentation.render_segmentation_page(filter_manager.get_active_filters())
             
     except Exception as e:
         st.error(f"An error occurred: {str(e)}")

@@ -12,9 +12,9 @@ In this guide, you'll:
 - 🧩 Uncover hidden customer sentiment and behavior patterns
 - 📈 Create cross-departmental insights that drive business value
 
-## 🏗️ Project Structure 🏗️
+## 🏗️ Project Structure ��️
 
-Your dbt project will have the following structure:
+Your dbt project has the following structure:
 
 ```
 dbt/
@@ -30,17 +30,22 @@ dbt/
 │   │   ├── fact_customer_interactions.sql
 │   │   ├── fact_product_reviews.sql
 │   │   └── fact_support_tickets.sql
-│   ├── analysis/          # Analysis models
-│   │   ├── sentiment_analysis.sql
-│   │   ├── sentiment_trends.sql
-│   │   ├── ticket_patterns.sql
-│   │   ├── insight_summaries.sql
-│   │   └── customer_persona_signals.sql
-│   └── semantic/          # Semantic models for Cortex Analyst
-│       ├── customer_insights.yml
-│       └── business_metrics.yml
-└── docs/                  # Documentation
-    └── erd.md            # Entity Relationship Diagram
+│   └── analysis/          # Analysis models
+│       ├── sentiment_analysis.sql
+│       ├── sentiment_trends.sql
+│       ├── ticket_patterns.sql
+│       ├── insight_summaries.sql
+│       └── customer_persona_signals.sql
+├── seeds/                 # Seed data files
+└── macros/               # Reusable SQL macros
+```
+
+The Streamlit application is organized as follows:
+
+```
+streamlit/
+├── app/                  # Streamlit application code
+└── docs/                 # Streamlit documentation
 ```
 
 ## 🏗️ Data Model Architecture 🏗️

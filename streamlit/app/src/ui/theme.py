@@ -4,25 +4,74 @@ def apply_theme():
     """Apply custom theme to the Streamlit application."""
     st.markdown("""
         <style>
-            /* Main theme colors */
+            /* Main theme colors - WCAG 2.1 AA compliant */
             :root {
-                --primary-color: #2563eb;
-                --secondary-color: #10b981;
+                --primary-color: #1a56db;  /* Darker blue for better contrast */
+                --secondary-color: #059669;  /* Darker green for better contrast */
                 --background-color: #ffffff;
-                --text-color: #1f2937;
+                --text-color: #111827;  /* Darker text for better readability */
                 --border-color: #e5e7eb;
+                --card-background: #f9fafb;
+                --success-color: #059669;
+                --warning-color: #d97706;
+                --error-color: #dc2626;
+                --info-color: #2563eb;
             }
             
             /* General styling */
             .stApp {
                 background-color: var(--background-color);
                 color: var(--text-color);
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            }
+            
+            /* Card-based layout system */
+            .element-container {
+                background-color: var(--card-background);
+                border: 1px solid var(--border-color);
+                border-radius: 0.75rem;
+                padding: 1.5rem;
+                margin-bottom: 1.5rem;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            }
+            
+            /* Consistent spacing */
+            .stMarkdown {
+                margin-bottom: 1rem;
+            }
+            
+            /* Header spacing */
+            .stHeader {
+                margin-bottom: 2rem;
+            }
+            
+            /* Section spacing */
+            .stSubheader {
+                margin-top: 2rem;
+                margin-bottom: 1.5rem;
+            }
+            
+            /* Tab spacing */
+            .stTabs {
+                margin-top: 1.5rem;
+                margin-bottom: 1.5rem;
+            }
+            
+            /* Chart spacing */
+            .stPlotlyChart {
+                margin-bottom: 2rem;
+            }
+            
+            /* Metric spacing */
+            .stMetric {
+                margin-bottom: 1.5rem;
             }
             
             /* Sidebar styling */
             .css-1d391kg {
-                background-color: var(--background-color);
+                background-color: var(--card-background);
                 border-right: 1px solid var(--border-color);
+                padding: 1.5rem;
             }
             
             /* Button styling */
@@ -30,44 +79,32 @@ def apply_theme():
                 background-color: var(--primary-color);
                 color: white;
                 border-radius: 0.5rem;
-                padding: 0.5rem 1rem;
+                padding: 0.75rem 1.5rem;
                 border: none;
                 font-weight: 500;
-            }
-            
-            .stButton > button:hover {
-                background-color: #1d4ed8;
-            }
-            
-            /* Metric card styling */
-            .stMetric {
-                background-color: var(--background-color);
-                border: 1px solid var(--border-color);
-                border-radius: 0.5rem;
-                padding: 1rem;
-            }
-            
-            /* Chart container styling */
-            .element-container {
-                background-color: var(--background-color);
-                border: 1px solid var(--border-color);
-                border-radius: 0.5rem;
-                padding: 1rem;
+                transition: background-color 0.2s;
                 margin-bottom: 1rem;
             }
             
-            /* Hide empty containers */
-            .element-container:empty {
-                display: none;
-                margin: 0;
-                padding: 0;
-                border: none;
+            .stButton > button:hover {
+                background-color: #1e40af;
             }
             
             /* Table styling */
             .stDataFrame {
                 border: 1px solid var(--border-color);
-                border-radius: 0.5rem;
+                border-radius: 0.75rem;
+                overflow: hidden;
+                margin-bottom: 1.5rem;
+            }
+            
+            /* Visual indicators for trends */
+            .trend-up {
+                color: var(--success-color);
+            }
+            
+            .trend-down {
+                color: var(--error-color);
             }
             
             /* Responsive design */
@@ -75,6 +112,29 @@ def apply_theme():
                 .stSidebar {
                     width: 100%;
                 }
+                
+                .element-container {
+                    padding: 1rem;
+                    margin-bottom: 1rem;
+                }
+            }
+            
+            /* Accessibility improvements */
+            .stMarkdown a {
+                color: var(--primary-color);
+                text-decoration: underline;
+            }
+            
+            .stMarkdown a:hover {
+                color: #1e40af;
+            }
+            
+            /* Focus states for keyboard navigation */
+            .stButton > button:focus,
+            .stSelectbox > div:focus,
+            .stTextInput > div:focus {
+                outline: 2px solid var(--primary-color);
+                outline-offset: 2px;
             }
         </style>
     """, unsafe_allow_html=True)
@@ -86,15 +146,16 @@ def get_color_palette():
         dict: Color palette dictionary
     """
     return {
-        "primary": "#2563eb",
-        "secondary": "#10b981",
+        "primary": "#1a56db",
+        "secondary": "#059669",
         "background": "#ffffff",
-        "text": "#1f2937",
+        "text": "#111827",
         "border": "#e5e7eb",
-        "success": "#10b981",
-        "warning": "#f59e0b",
-        "error": "#ef4444",
-        "info": "#3b82f6"
+        "card": "#f9fafb",
+        "success": "#059669",
+        "warning": "#d97706",
+        "error": "#dc2626",
+        "info": "#2563eb"
     }
 
 def get_typography():

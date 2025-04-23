@@ -1,6 +1,23 @@
 # Customer Analytics Dashboard
 
-A sophisticated Streamlit application for analyzing customer behavior, sentiment, and engagement patterns using Snowflake's data platform.
+A sophisticated Streamlit application for analyzing customer behavior, sentiment, and engagement patterns using Snowflake's data platform and dbt for data transformation.
+
+## Project Structure
+
+```
+.
+├── dbt/                    # dbt project for data transformation
+│   ├── models/            # SQL models
+│   ├── seeds/             # Seed data
+│   ├── macros/            # Reusable SQL macros
+│   └── setup.sql          # Snowflake environment setup
+├── streamlit/             # Streamlit application
+│   ├── app/               # Application code
+│   └── docs/              # Documentation
+├── snowflake_sql/         # Additional Snowflake SQL scripts
+├── data/                  # Sample data files
+└── quickstart_docs/       # Quickstart documentation
+```
 
 ## Features
 
@@ -9,6 +26,7 @@ A sophisticated Streamlit application for analyzing customer behavior, sentiment
 - Support ticket and product review analytics
 - Real-time filtering and data exploration
 - Exportable customer data
+- AI-powered insights using Snowflake Cortex LLM functions
 
 ## Prerequisites
 
@@ -18,18 +36,26 @@ A sophisticated Streamlit application for analyzing customer behavior, sentiment
   - SENTIMENT_ANALYSIS
   - FACT_SUPPORT_TICKETS
   - FACT_PRODUCT_REVIEWS
+- dbt Cloud account (optional, for data transformation)
+- Python 3.8+ with required packages (see requirements.txt)
 
-## Deployment Instructions
+## Setup Instructions
 
-1. Log in to your Snowflake account
-2. Navigate to the Streamlit section in Snowsight
-3. Create a new Streamlit app
-4. Copy the contents of `streamlit_app.py` into the editor
-5. Set the following configuration:
-   - App name: Customer Analytics Dashboard
-   - Warehouse: Your preferred warehouse
-   - Database: Your database containing the ANALYTICS schema
-   - Schema: ANALYTICS
+1. Clone this repository
+2. Set up your Snowflake environment using `dbt/setup.sql`
+3. Configure your dbt project:
+   - Update `dbt/dbt_project.yml` with your Snowflake credentials
+   - Run `dbt deps` to install dependencies
+   - Run `dbt run` to build the data models
+4. Deploy the Streamlit app:
+   - Navigate to the Streamlit section in Snowsight
+   - Create a new Streamlit app
+   - Copy the contents of `streamlit/app/` into the editor
+   - Configure the app settings:
+     - App name: Customer Analytics Dashboard
+     - Warehouse: Your preferred warehouse
+     - Database: Your database containing the ANALYTICS schema
+     - Schema: ANALYTICS
 
 ## Usage
 
@@ -51,6 +77,7 @@ A sophisticated Streamlit application for analyzing customer behavior, sentiment
 - Queries are optimized for Snowflake's execution engine
 - Progressive loading for large datasets
 - Responsive UI design
+- Efficient use of Snowflake Cortex LLM functions
 
 ## Security
 
@@ -58,6 +85,7 @@ A sophisticated Streamlit application for analyzing customer behavior, sentiment
 - Row-level security is respected
 - All queries are parameterized to prevent SQL injection
 - Session-based authentication
+- Secure handling of API keys and credentials
 
 ## Troubleshooting
 
@@ -67,7 +95,9 @@ If you encounter any issues:
 2. Verify table access in the ANALYTICS schema
 3. Ensure the warehouse has sufficient resources
 4. Clear the browser cache if visualizations are not loading
+5. Check the dbt logs for any transformation errors
+6. Verify your Snowflake Cortex LLM function access
 
 ## Support
 
-For technical support or feature requests, please contact your Snowflake administrator. 
+For technical support or feature requests, please contact your Snowflake administrator or open an issue in the repository. 

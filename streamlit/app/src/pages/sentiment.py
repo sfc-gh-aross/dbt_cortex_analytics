@@ -5,7 +5,13 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 from src.data.connection import execute_query
 from src.utils.logging import log_query_execution, log_error
-from src.utils.ui import LoadingState, handle_error, show_empty_state, show_error
+from src.utils.ui import (
+    display_trend_indicator,
+    create_card,
+    display_data_table,
+    show_empty_state,
+    handle_error
+)
 from src.utils.ui_enhanced import (
     with_tooltip,
     EnhancedLoadingState,
@@ -13,6 +19,7 @@ from src.utils.ui_enhanced import (
     enhanced_dataframe,
     with_loading_and_feedback
 )
+from typing import Dict
 
 @with_loading_and_feedback(
     message="Fetching sentiment data...",
@@ -30,7 +37,7 @@ def get_sentiment_data():
             END as sentiment_category,
             COUNT(*) as count,
             ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 2) as percentage
-        FROM ANALYTICS.FACT_CUSTOMER_INTERACTIONS
+        FROM ANALYTICS.SENTIMENT_ANALYSIS
         GROUP BY sentiment_category
         ORDER BY count DESC;
     """
@@ -45,7 +52,7 @@ def get_sentiment_trends():
             DATE_TRUNC('day', interaction_date) as date,
             ROUND(AVG(sentiment_score), 3) as avg_sentiment,
             COUNT(*) as interaction_count
-        FROM ANALYTICS.FACT_CUSTOMER_INTERACTIONS
+        FROM ANALYTICS.SENTIMENT_ANALYSIS
         GROUP BY date
         ORDER BY date;
     """
@@ -57,11 +64,11 @@ def get_sentiment_by_type():
     """Fetch sentiment by interaction type data."""
     type_query = """
         SELECT 
-            interaction_type,
+            source_type as interaction_type,
             ROUND(AVG(sentiment_score), 3) as avg_sentiment,
             COUNT(*) as interaction_count
-        FROM ANALYTICS.FACT_CUSTOMER_INTERACTIONS
-        GROUP BY interaction_type
+        FROM ANALYTICS.SENTIMENT_ANALYSIS
+        GROUP BY source_type
         ORDER BY avg_sentiment DESC;
     """
     data = execute_query(type_query)
@@ -76,7 +83,7 @@ def get_sentiment_correlation():
                 DATE_TRUNC('day', interaction_date) as date,
                 AVG(sentiment_score) as avg_sentiment,
                 COUNT(*) as interaction_count
-            FROM ANALYTICS.FACT_CUSTOMER_INTERACTIONS
+            FROM ANALYTICS.SENTIMENT_ANALYSIS
             GROUP BY date
         )
         SELECT 
@@ -93,47 +100,186 @@ def get_sentiment_correlation():
 def get_sentiment_volatility():
     """Fetch sentiment volatility data."""
     volatility_query = """
-        WITH customer_metrics AS (
-            SELECT 
-                customer_id,
-                AVG(sentiment_score) as avg_sentiment,
-                STDDEV(sentiment_score) as sentiment_volatility,
-                COUNT(*) as interaction_count
-            FROM ANALYTICS.FACT_CUSTOMER_INTERACTIONS
-            GROUP BY customer_id
-        )
         SELECT 
             customer_id,
             avg_sentiment,
             sentiment_volatility,
-            interaction_count
-        FROM customer_metrics
+            ticket_count
+        FROM ANALYTICS.CUSTOMER_PERSONA_SIGNALS
         ORDER BY sentiment_volatility DESC
         LIMIT 10;
     """
     data = execute_query(volatility_query)
-    return pd.DataFrame(data, columns=['customer_id', 'avg_sentiment', 'sentiment_volatility', 'interaction_count'])
+    return pd.DataFrame(data, columns=['customer_id', 'avg_sentiment', 'sentiment_volatility', 'ticket_count'])
 
-def render_sentiment_page():
-    """Render the Sentiment & Experience workspace."""
+def render_sentiment_page(active_filters: Dict):
+    """Render the sentiment analysis page with applied filters."""
+    st.title("Sentiment & Experience Analysis")
+    
+    # Display active filters summary
+    st.markdown("### Applied Filters")
+    filter_cols = st.columns(3)
+    
+    with filter_cols[0]:
+        if "date_range" in active_filters:
+            start_date, end_date = active_filters["date_range"]
+            st.metric("Date Range", f"{start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
+    
+    with filter_cols[1]:
+        if "personas" in active_filters:
+            personas = active_filters["personas"]
+            st.metric("Customer Personas", ", ".join(personas) if personas else "All")
+    
+    with filter_cols[2]:
+        if "channels" in active_filters:
+            channels = active_filters["channels"]
+            st.metric("Channels", ", ".join(channels) if channels else "All")
+    
+    # Main content
+    st.markdown("---")
+    
+    # Example sentiment metrics (replace with actual data)
+    metric_cols = st.columns(4)
+    with metric_cols[0]:
+        st.metric("Overall Sentiment", "Positive", "+5%")
+    with metric_cols[1]:
+        st.metric("Customer Satisfaction", "85%", "+2%")
+    with metric_cols[2]:
+        st.metric("Response Time", "2.5h", "-0.5h")
+    with metric_cols[3]:
+        st.metric("Resolution Rate", "92%", "+3%")
+    
+    # Example sentiment trends chart (replace with actual data)
+    st.markdown("### Sentiment Trends")
+    if "date_range" in active_filters:
+        start_date, end_date = active_filters["date_range"]
+        date_range = pd.date_range(start=start_date, end=end_date, freq='D')
+        sentiment_scores = [0.7, 0.8, 0.75, 0.85, 0.9, 0.88, 0.92] * (len(date_range) // 7 + 1)
+        sentiment_scores = sentiment_scores[:len(date_range)]  # Ensure same length
+        
+        chart_data = pd.DataFrame({
+            'Date': date_range,
+            'Sentiment Score': sentiment_scores
+        })
+        st.line_chart(chart_data.set_index('Date'))
+    
+    # Example sentiment breakdown by persona (replace with actual data)
+    st.markdown("### Sentiment by Customer Persona")
+    
+    # Define all possible personas
+    all_personas = ["Enterprise", "SMB", "Startup", "Individual"]
+    
+    # Get selected personas from filters
+    selected_personas = active_filters.get("personas", ["All"])
+    
+    # If "All" is selected or no specific personas are selected, show all personas
+    if "All" in selected_personas or not selected_personas:
+        display_personas = all_personas
+    else:
+        display_personas = selected_personas
+    
+    # Create persona data
+    persona_data = pd.DataFrame({
+        'Persona': display_personas,
+        'Positive': [85, 75, 90, 80][:len(display_personas)],
+        'Neutral': [10, 15, 5, 15][:len(display_personas)],
+        'Negative': [5, 10, 5, 5][:len(display_personas)]
+    })
+    
+    # Display the chart
+    st.bar_chart(persona_data.set_index('Persona'))
+    
+    # Add a note if specific personas are selected
+    if "All" not in selected_personas and selected_personas:
+        st.info(f"Showing data for selected personas: {', '.join(selected_personas)}")
+
     try:
         # Page header with tooltip
-        @with_tooltip("Analyze customer sentiment across different interaction types and time periods")
-        def render_header():
-            st.header("Sentiment & Experience Analytics")
-        render_header()
+        st.header("Sentiment & Experience Analytics")
+        st.markdown("Analyze customer sentiment across different interaction types and time periods")
         
-        # Create three columns for key metrics
+        # Key Metrics Section
+        st.subheader("Key Metrics")
         col1, col2, col3 = st.columns(3)
         
-        # Overall Sentiment Distribution
+        # Overall Sentiment Score
         with col1:
-            @with_tooltip("Distribution of customer sentiment across all interactions")
-            def render_sentiment_distribution():
-                st.subheader("Overall Sentiment")
-            render_sentiment_distribution()
+            sentiment_metrics_query = """
+                SELECT 
+                    ROUND(AVG(sentiment_score), 2) as current_sentiment,
+                    ROUND(AVG(CASE WHEN interaction_date >= DATEADD('month', -1, CURRENT_DATE()) THEN sentiment_score END), 2) as recent_sentiment
+                FROM ANALYTICS.SENTIMENT_ANALYSIS;
+            """
+            metrics_data = execute_query(sentiment_metrics_query)
+            if metrics_data and len(metrics_data) > 0:
+                current_sentiment = metrics_data[0][0] or 0
+                previous_sentiment = metrics_data[0][1] or 0
+                display_trend_indicator(
+                    current_value=current_sentiment,
+                    previous_value=previous_sentiment,
+                    label="Overall Sentiment Score",
+                    format="{:.2f}"
+                )
+        
+        # Positive Sentiment Rate
+        with col2:
+            positive_rate_query = """
+                WITH sentiment_counts AS (
+                    SELECT 
+                        COUNT(CASE WHEN sentiment_score > 0.3 THEN 1 END) as positive_count,
+                        COUNT(*) as total_count
+                    FROM ANALYTICS.SENTIMENT_ANALYSIS
+                    WHERE interaction_date >= DATEADD('month', -1, CURRENT_DATE())
+                )
+                SELECT 
+                    ROUND(100.0 * positive_count / NULLIF(total_count, 0), 1) as positive_rate
+                FROM sentiment_counts;
+            """
+            rate_data = execute_query(positive_rate_query)
+            if rate_data and len(rate_data) > 0:
+                current_positive = rate_data[0][0] or 0
+                display_trend_indicator(
+                    current_value=current_positive,
+                    previous_value=0,  # No previous value available
+                    label="Positive Sentiment Rate",
+                    format="{:.1f}%"
+                )
+        
+        # Sentiment Volatility
+        with col3:
+            volatility_metrics_query = """
+                SELECT 
+                    ROUND(AVG(sentiment_volatility), 2) as avg_volatility
+                FROM ANALYTICS.SENTIMENT_TRENDS;
+            """
+            volatility_data = execute_query(volatility_metrics_query)
+            if volatility_data and len(volatility_data) > 0:
+                current_volatility = volatility_data[0][0] or 0
+                display_trend_indicator(
+                    current_value=current_volatility,
+                    previous_value=0,  # No previous value available
+                    label="Average Sentiment Volatility",
+                    format="{:.2f}"
+                )
+        
+        # Main Analysis Section
+        st.subheader("Detailed Analysis")
+        
+        # Create tabs for different analyses
+        tab1, tab2, tab3 = st.tabs([
+            "Sentiment Distribution",
+            "Trend Analysis",
+            "Raw Data"
+        ])
+        
+        with tab1:
+            # Sentiment Distribution Card
+            create_card(
+                title="Sentiment Distribution",
+                content="Distribution of customer sentiment across all interactions"
+            )
             
-            with EnhancedLoadingState("Loading sentiment distribution...") as loader:
+            with st.spinner("Loading sentiment distribution..."):
                 df_sentiment = get_sentiment_data()
                 if df_sentiment is not None and not df_sentiment.empty:
                     df_sentiment['count'] = pd.to_numeric(df_sentiment['count'])
@@ -153,21 +299,20 @@ def render_sentiment_page():
                 else:
                     show_empty_state("No sentiment data available")
         
-        # Sentiment Trends
-        with col2:
-            @with_tooltip("Track how customer sentiment changes over time")
-            def render_sentiment_trends():
-                st.subheader("Sentiment Trends")
-            render_sentiment_trends()
+        with tab2:
+            # Trend Analysis Card
+            create_card(
+                title="Sentiment Trends",
+                content="Track how customer sentiment changes over time"
+            )
             
-            with EnhancedLoadingState("Loading sentiment trends...") as loader:
+            with st.spinner("Loading sentiment trends..."):
                 df_trends = get_sentiment_trends()
                 if df_trends is not None and not df_trends.empty:
                     fig = px.line(
                         df_trends,
                         x='date',
                         y='avg_sentiment',
-                        title='Sentiment Trends Over Time',
                         labels={
                             'date': 'Date',
                             'avg_sentiment': 'Average Sentiment',
@@ -178,112 +323,35 @@ def render_sentiment_page():
                 else:
                     show_empty_state("No trend data available")
         
-        # Sentiment by Interaction Type
-        with col3:
-            @with_tooltip("Compare sentiment across different types of customer interactions")
-            def render_sentiment_by_type():
-                st.subheader("Sentiment by Type")
-            render_sentiment_by_type()
-            
-            with EnhancedLoadingState("Loading sentiment by type...") as loader:
-                df_type = get_sentiment_by_type()
-                if df_type is not None and not df_type.empty:
-                    fig = px.bar(
-                        df_type,
-                        x='interaction_type',
-                        y='avg_sentiment',
-                        color='interaction_count',
-                        title='Sentiment by Interaction Type',
-                        labels={
-                            'interaction_type': 'Interaction Type',
-                            'avg_sentiment': 'Average Sentiment',
-                            'interaction_count': 'Interaction Count'
-                        }
-                    )
-                    fig.update_layout(xaxis_tickangle=45)
-                    st.plotly_chart(fig, use_container_width=True)
-                else:
-                    show_empty_state("No interaction type data available")
-        
-        # Detailed Analysis Section
-        st.markdown("---")
-        @with_tooltip("Explore detailed sentiment analysis and correlations")
-        def render_detailed_analysis():
-            st.subheader("Detailed Analysis")
-        render_detailed_analysis()
-        
-        # Create tabs for different analyses
-        tab1, tab2, tab3 = st.tabs([
-            "Sentiment Correlations",
-            "Volatility Analysis",
-            "Raw Data"
-        ])
-        
-        with tab1:
-            with EnhancedLoadingState("Loading correlation data...") as loader:
-                df_correlation = get_sentiment_correlation()
-                if df_correlation is not None and not df_correlation.empty:
-                    fig = go.Figure()
-                    fig.add_trace(go.Scatter(
-                        x=df_correlation['date'],
-                        y=df_correlation['avg_sentiment'],
-                        name='Average Sentiment',
-                        line=dict(color='#3b82f6')
-                    ))
-                    fig.add_trace(go.Scatter(
-                        x=df_correlation['date'],
-                        y=df_correlation['interaction_count'],
-                        name='Interaction Count',
-                        line=dict(color='#10b981'),
-                        yaxis='y2'
-                    ))
-                    fig.update_layout(
-                        title='Sentiment vs. Interaction Volume',
-                        yaxis=dict(title='Average Sentiment'),
-                        yaxis2=dict(
-                            title='Interaction Count',
-                            overlaying='y',
-                            side='right'
-                        )
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-                else:
-                    show_empty_state("No correlation data available")
-        
-        with tab2:
-            with EnhancedLoadingState("Loading volatility data...") as loader:
-                df_volatility = get_sentiment_volatility()
-                if df_volatility is not None and not df_volatility.empty:
-                    df_volatility['interaction_count'] = pd.to_numeric(df_volatility['interaction_count'], errors='coerce')
-                    df_volatility = df_volatility.dropna(subset=['interaction_count'])
-                    
-                    if not df_volatility.empty:
-                        fig = px.scatter(
-                            df_volatility,
-                            x='avg_sentiment',
-                            y='sentiment_volatility',
-                            size='interaction_count',
-                            hover_data=['customer_id'],
-                            title='Customer Sentiment Volatility vs. Average'
-                        )
-                        st.plotly_chart(fig, use_container_width=True)
-                    else:
-                        show_empty_state("No volatility data available")
-                else:
-                    show_empty_state("No volatility data available")
-        
         with tab3:
-            with EnhancedLoadingState("Loading raw data...") as loader:
-                df_raw = get_sentiment_data()
-                if df_raw is not None and not df_raw.empty:
-                    enhanced_dataframe(
-                        df_raw,
-                        height=400,
-                        use_container_width=True
+            # Raw Data Card
+            create_card(
+                title="Raw Data",
+                content="Detailed sentiment data for further analysis"
+            )
+            
+            with st.spinner("Loading raw data..."):
+                raw_query = """
+                    SELECT 
+                        customer_id,
+                        interaction_date,
+                        source_type,
+                        sentiment_score
+                    FROM ANALYTICS.SENTIMENT_ANALYSIS
+                    ORDER BY interaction_date DESC
+                    LIMIT 1000;
+                """
+                raw_data = execute_query(raw_query)
+                if raw_data is not None:
+                    df_raw = pd.DataFrame(raw_data, columns=['customer_id', 'interaction_date', 'source_type', 'sentiment_score'])
+                    display_data_table(
+                        data=df_raw,
+                        title="Sentiment Data",
+                        height=400
                     )
                 else:
                     show_empty_state("No raw data available")
-                    
+        
     except Exception as e:
-        show_toast(f"An error occurred while rendering the sentiment page: {str(e)}", "error")
+        st.error(f"An error occurred: {str(e)}")
         log_error(e, "Sentiment page rendering") 

@@ -1,259 +1,190 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
-from datetime import datetime, timedelta
 from src.data.connection import execute_query
-from src.utils.logging import log_query_execution, log_error
+from src.utils.logging import log_error
+from src.utils.visualization import (
+    create_interactive_chart,
+    create_drilldown_chart,
+    create_comparison_chart,
+    add_export_options
+)
+import plotly.express as px
+from typing import Dict
 
-def render_reviews_page():
-    """Render the Product Feedback workspace."""
+def render_reviews_page(active_filters: Dict):
+    """Render the product feedback page with applied filters."""
+    st.title("Product Feedback Analysis")
+    
+    # Display active filters summary
+    st.markdown("### Applied Filters")
+    filter_cols = st.columns(3)
+    
+    with filter_cols[0]:
+        if "date_range" in active_filters:
+            start_date, end_date = active_filters["date_range"]
+            st.metric("Date Range", f"{start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
+    
+    with filter_cols[1]:
+        if "personas" in active_filters:
+            personas = active_filters["personas"]
+            st.metric("Customer Personas", ", ".join(personas) if personas else "All")
+    
+    with filter_cols[2]:
+        if "channels" in active_filters:
+            channels = active_filters["channels"]
+            st.metric("Channels", ", ".join(channels) if channels else "All")
+    
+    # Main content
+    st.markdown("---")
+    
+    # Example review metrics (replace with actual data)
+    metric_cols = st.columns(4)
+    with metric_cols[0]:
+        st.metric("Average Rating", "4.5", "+0.2")
+    with metric_cols[1]:
+        st.metric("Total Reviews", "2,345", "+15%")
+    with metric_cols[2]:
+        st.metric("Positive Reviews", "85%", "+5%")
+    with metric_cols[3]:
+        st.metric("Response Rate", "95%", "+2%")
+    
+    # Example rating trends chart (replace with actual data)
+    st.markdown("### Rating Trends")
+    if "date_range" in active_filters:
+        start_date, end_date = active_filters["date_range"]
+        date_range = pd.date_range(start=start_date, end=end_date, freq='D')
+        ratings = [4.2, 4.3, 4.4, 4.5, 4.6, 4.5, 4.7] * (len(date_range) // 7 + 1)
+        ratings = ratings[:len(date_range)]  # Ensure same length
+        
+        chart_data = pd.DataFrame({
+            'Date': date_range,
+            'Average Rating': ratings
+        })
+        st.line_chart(chart_data.set_index('Date'))
+    
+    # Example review distribution (replace with actual data)
+    st.markdown("### Review Distribution")
+    rating_data = pd.DataFrame({
+        'Rating': [1, 2, 3, 4, 5],
+        'Count': [50, 100, 200, 800, 1200]
+    })
+    st.bar_chart(rating_data.set_index('Rating'))
+
     try:
         # Page header
         st.header("Product Feedback Analytics")
+        st.markdown("Analyze customer reviews and feedback across products")
         
-        # Create three columns for key metrics
-        col1, col2, col3 = st.columns(3)
+        # Key Metrics Section
+        st.subheader("Key Metrics")
         
-        # Rating Distribution
-        with col1:
-            st.subheader("Rating Distribution")
-            rating_query = """
+        # Create tabs for different analyses
+        tab1, tab2, tab3 = st.tabs([
+            "Review Ratings",
+            "Sentiment by Product",
+            "Review Volume Trends"
+        ])
+        
+        with tab1:
+            ratings_query = """
                 SELECT 
-                    review_rating,
+                    product_id,
+                    ROUND(AVG(review_rating), 2) as avg_rating,
                     COUNT(*) as review_count,
-                    ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 2) as percentage
+                    COUNT(DISTINCT customer_id) as unique_customers
                 FROM ANALYTICS.FACT_PRODUCT_REVIEWS
-                GROUP BY review_rating
-                ORDER BY review_rating;
+                GROUP BY product_id
+                ORDER BY avg_rating DESC;
             """
             try:
-                rating_data = execute_query(rating_query)
-                if rating_data:
-                    df_rating = pd.DataFrame(rating_data, columns=['review_rating', 'review_count', 'percentage'])
-                    
-                    # Create histogram
-                    fig = px.histogram(
-                        df_rating,
-                        x='review_rating',
-                        y='review_count',
-                        title='Review Rating Distribution',
+                ratings_data = execute_query(ratings_query)
+                df_ratings = pd.DataFrame(ratings_data, columns=['product_id', 'avg_rating', 'review_count', 'unique_customers'])
+                
+                if not df_ratings.empty:
+                    fig = px.bar(
+                        df_ratings,
+                        x='product_id',
+                        y='avg_rating',
+                        color='review_count',
+                        title='Average Ratings by Product',
                         labels={
-                            'review_rating': 'Rating',
-                            'review_count': 'Review Count',
-                            'percentage': 'Percentage'
+                            'product_id': 'Product ID',
+                            'avg_rating': 'Average Rating',
+                            'review_count': 'Number of Reviews'
                         }
                     )
                     st.plotly_chart(fig, use_container_width=True)
                 else:
-                    st.warning("No rating data available")
+                    st.warning("No ratings data available")
             except Exception as e:
-                log_error(e, "Rating distribution visualization")
-                st.error("Failed to load rating distribution data")
+                log_error(e, "Ratings visualization")
+                st.error("Failed to load ratings data")
         
-        # Review Sentiment by Product
-        with col2:
-            st.subheader("Sentiment by Product")
+        with tab2:
             sentiment_query = """
                 SELECT 
-                    product_id,
-                    ROUND(AVG(sentiment_score), 3) as avg_sentiment,
-                    ROUND(AVG(review_rating), 2) as avg_rating,
+                    pr.product_id,
+                    ROUND(AVG(pr.sentiment_score), 2) as avg_sentiment,
                     COUNT(*) as review_count
-                FROM ANALYTICS.FACT_PRODUCT_REVIEWS
-                GROUP BY product_id
+                FROM ANALYTICS.FACT_PRODUCT_REVIEWS pr
+                GROUP BY pr.product_id
                 ORDER BY avg_sentiment DESC;
             """
             try:
                 sentiment_data = execute_query(sentiment_query)
-                if sentiment_data:
-                    df_sentiment = pd.DataFrame(sentiment_data, columns=['product_id', 'avg_sentiment', 'avg_rating', 'review_count'])
-                    
-                    # Create bubble chart
+                df_sentiment = pd.DataFrame(sentiment_data, columns=['product_id', 'avg_sentiment', 'review_count'])
+                
+                if not df_sentiment.empty:
                     fig = px.scatter(
                         df_sentiment,
-                        x='avg_sentiment',
-                        y='avg_rating',
+                        x='product_id',
+                        y='avg_sentiment',
                         size='review_count',
-                        color='product_id',
-                        title='Review Sentiment by Product',
+                        title='Sentiment Analysis by Product',
                         labels={
+                            'product_id': 'Product ID',
                             'avg_sentiment': 'Average Sentiment',
-                            'avg_rating': 'Average Rating',
-                            'review_count': 'Review Count',
-                            'product_id': 'Product'
+                            'review_count': 'Number of Reviews'
                         }
                     )
                     st.plotly_chart(fig, use_container_width=True)
                 else:
                     st.warning("No sentiment data available")
             except Exception as e:
-                log_error(e, "Sentiment by product visualization")
-                st.error("Failed to load sentiment by product data")
+                log_error(e, "Sentiment visualization")
+                st.error("Failed to load sentiment data")
         
-        # Review Volume Trends
-        with col3:
-            st.subheader("Review Volume")
+        with tab3:
             volume_query = """
                 SELECT 
-                    DATE_TRUNC('day', review_date) as date,
-                    COUNT(*) as review_count,
-                    ROUND(AVG(review_rating), 2) as avg_rating
+                    DATE_TRUNC('month', review_date) as month,
+                    COUNT(*) as review_count
                 FROM ANALYTICS.FACT_PRODUCT_REVIEWS
-                GROUP BY date
-                ORDER BY date;
+                GROUP BY month
+                ORDER BY month;
             """
             try:
                 volume_data = execute_query(volume_query)
-                if volume_data:
-                    df_volume = pd.DataFrame(volume_data, columns=['date', 'review_count', 'avg_rating'])
-                    
-                    # Create area chart
-                    fig = px.area(
+                df_volume = pd.DataFrame(volume_data, columns=['month', 'review_count'])
+                
+                if not df_volume.empty:
+                    fig = px.line(
                         df_volume,
-                        x='date',
+                        x='month',
                         y='review_count',
                         title='Review Volume Trends',
                         labels={
-                            'date': 'Date',
-                            'review_count': 'Review Count',
-                            'avg_rating': 'Average Rating'
+                            'month': 'Month',
+                            'review_count': 'Number of Reviews'
                         }
                     )
                     st.plotly_chart(fig, use_container_width=True)
                 else:
                     st.warning("No volume data available")
             except Exception as e:
-                log_error(e, "Review volume visualization")
-                st.error("Failed to load review volume data")
-        
-        # Detailed Analysis Section
-        st.markdown("---")
-        st.subheader("Detailed Analysis")
-        
-        # Create tabs for different analyses
-        tab1, tab2, tab3 = st.tabs([
-            "Multilingual Analysis",
-            "Rating-Sentiment Correlation",
-            "Raw Data"
-        ])
-        
-        with tab1:
-            # Multilingual Review Analysis
-            language_query = """
-                SELECT 
-                    review_language,
-                    COUNT(*) as review_count,
-                    ROUND(AVG(sentiment_score), 3) as avg_sentiment,
-                    ROUND(AVG(review_rating), 2) as avg_rating
-                FROM ANALYTICS.FACT_PRODUCT_REVIEWS
-                GROUP BY review_language
-                ORDER BY review_count DESC;
-            """
-            try:
-                language_data = execute_query(language_query)
-                if language_data:
-                    df_language = pd.DataFrame(language_data, columns=['review_language', 'review_count', 'avg_sentiment', 'avg_rating'])
-                    
-                    # Create radar chart
-                    fig = go.Figure()
-                    
-                    for language in df_language['review_language']:
-                        language_data = df_language[df_language['review_language'] == language]
-                        if not language_data.empty:
-                            fig.add_trace(go.Scatterpolar(
-                                r=[
-                                    language_data['review_count'].iloc[0],
-                                    language_data['avg_sentiment'].iloc[0],
-                                    language_data['avg_rating'].iloc[0]
-                                ],
-                                theta=['Review Count', 'Average Sentiment', 'Average Rating'],
-                                fill='toself',
-                                name=language
-                            ))
-                    
-                    if len(fig.data) > 0:
-                        fig.update_layout(
-                            polar=dict(
-                                radialaxis=dict(
-                                    visible=True,
-                                    range=[0, max(df_language['review_count'])]
-                                )
-                            ),
-                            title='Multilingual Review Analysis',
-                            showlegend=True
-                        )
-                        st.plotly_chart(fig, use_container_width=True)
-                    else:
-                        st.warning("No language data available for visualization")
-                else:
-                    st.warning("No language data available")
-            except Exception as e:
-                log_error(e, "Multilingual analysis visualization")
-                st.error("Failed to load multilingual analysis data")
-        
-        with tab2:
-            # Review Sentiment vs. Product Rating Correlation
-            correlation_query = """
-                SELECT 
-                    review_rating,
-                    sentiment_score,
-                    COUNT(*) as review_count
-                FROM ANALYTICS.FACT_PRODUCT_REVIEWS
-                GROUP BY review_rating, sentiment_score
-                ORDER BY review_rating, sentiment_score;
-            """
-            try:
-                correlation_data = execute_query(correlation_query)
-                if correlation_data:
-                    df_correlation = pd.DataFrame(correlation_data, columns=['review_rating', 'sentiment_score', 'review_count'])
-                    
-                    # Create scatter plot with color gradient
-                    fig = px.scatter(
-                        df_correlation,
-                        x='review_rating',
-                        y='sentiment_score',
-                        size='review_count',
-                        color='review_count',
-                        color_continuous_scale='Viridis',
-                        title='Review Rating vs. Sentiment Correlation',
-                        labels={
-                            'review_rating': 'Review Rating',
-                            'sentiment_score': 'Sentiment Score',
-                            'review_count': 'Review Count'
-                        }
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-                else:
-                    st.warning("No correlation data available")
-            except Exception as e:
-                log_error(e, "Rating-sentiment correlation visualization")
-                st.error("Failed to load rating-sentiment correlation data")
-        
-        with tab3:
-            raw_data_query = """
-                SELECT 
-                    review_id,
-                    product_id,
-                    review_date,
-                    review_rating,
-                    sentiment_score,
-                    review_language
-                FROM ANALYTICS.FACT_PRODUCT_REVIEWS
-                ORDER BY review_date DESC
-                LIMIT 1000;
-            """
-            try:
-                raw_data = execute_query(raw_data_query)
-                if raw_data:
-                    df_raw = pd.DataFrame(raw_data, columns=['review_id', 'product_id', 'review_date', 'review_rating', 'sentiment_score', 'review_language'])
-                    st.dataframe(df_raw)
-                else:
-                    st.warning("No raw data available")
-            except Exception as e:
-                log_error(e, "Raw data display")
-                st.error("Failed to load raw data")
+                log_error(e, "Volume trends visualization")
+                st.error("Failed to load volume trends data")
     
     except Exception as e:
-        log_error(e, "Reviews page rendering")
-        st.error("An error occurred while rendering the product feedback page") 
+        st.error(f"An error occurred: {str(e)}")
+        log_error(e, "Reviews page rendering") 

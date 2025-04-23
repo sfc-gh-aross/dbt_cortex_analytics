@@ -5,9 +5,67 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 from src.data.connection import execute_query
 from src.utils.logging import log_query_execution, log_error
+from typing import Dict
 
-def render_support_page():
-    """Render the Support Operations workspace."""
+def render_support_page(active_filters: Dict):
+    """Render the support operations page with applied filters."""
+    st.title("Support Operations Analysis")
+    
+    # Display active filters summary
+    st.markdown("### Applied Filters")
+    filter_cols = st.columns(3)
+    
+    with filter_cols[0]:
+        if "date_range" in active_filters:
+            start_date, end_date = active_filters["date_range"]
+            st.metric("Date Range", f"{start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
+    
+    with filter_cols[1]:
+        if "personas" in active_filters:
+            personas = active_filters["personas"]
+            st.metric("Customer Personas", ", ".join(personas) if personas else "All")
+    
+    with filter_cols[2]:
+        if "channels" in active_filters:
+            channels = active_filters["channels"]
+            st.metric("Channels", ", ".join(channels) if channels else "All")
+    
+    # Main content
+    st.markdown("---")
+    
+    # Example support metrics (replace with actual data)
+    metric_cols = st.columns(4)
+    with metric_cols[0]:
+        st.metric("Total Tickets", "1,234", "+12%")
+    with metric_cols[1]:
+        st.metric("First Response Time", "2.3h", "-0.5h")
+    with metric_cols[2]:
+        st.metric("Resolution Time", "8.5h", "-1.2h")
+    with metric_cols[3]:
+        st.metric("Customer Satisfaction", "92%", "+3%")
+    
+    # Example ticket trends chart (replace with actual data)
+    st.markdown("### Ticket Volume Trends")
+    if "date_range" in active_filters:
+        start_date, end_date = active_filters["date_range"]
+        date_range = pd.date_range(start=start_date, end=end_date, freq='D')
+        ticket_volume = [100, 120, 110, 130, 140, 150, 160] * (len(date_range) // 7 + 1)
+        ticket_volume = ticket_volume[:len(date_range)]  # Ensure same length
+        
+        chart_data = pd.DataFrame({
+            'Date': date_range,
+            'Ticket Volume': ticket_volume
+        })
+        st.line_chart(chart_data.set_index('Date'))
+    
+    # Example channel distribution (replace with actual data)
+    st.markdown("### Support Channel Distribution")
+    channel_data = pd.DataFrame({
+        'Channel': ["Email", "Chat", "Phone", "Social"],
+        'Volume': [500, 300, 200, 234]
+    })
+    st.bar_chart(channel_data.set_index('Channel'))
+
     try:
         # Page header
         st.header("Support Operations Analytics")
