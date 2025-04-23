@@ -175,8 +175,7 @@ def render_product_page():
                 st.error("Failed to load usage trends data")
         
         # Detailed Analysis Section
-        st.markdown("---")
-        st.subheader("Detailed Analysis")
+        st.title("Product Analytics Dashboard")
         
         # Create tabs for different analyses
         tab1, tab2, tab3 = st.tabs([

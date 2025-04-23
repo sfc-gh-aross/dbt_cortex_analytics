@@ -9,29 +9,7 @@ from typing import Dict
 
 def render_support_page(active_filters: Dict):
     """Render the support operations page with applied filters."""
-    st.title("Support Operations Analysis")
-    
-    # Display active filters summary
-    st.markdown("### Applied Filters")
-    filter_cols = st.columns(3)
-    
-    with filter_cols[0]:
-        if "date_range" in active_filters:
-            start_date, end_date = active_filters["date_range"]
-            st.metric("Date Range", f"{start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
-    
-    with filter_cols[1]:
-        if "personas" in active_filters:
-            personas = active_filters["personas"]
-            st.metric("Customer Personas", ", ".join(personas) if personas else "All")
-    
-    with filter_cols[2]:
-        if "channels" in active_filters:
-            channels = active_filters["channels"]
-            st.metric("Channels", ", ".join(channels) if channels else "All")
-    
-    # Main content
-    st.markdown("---")
+    st.title("Support Operations Dashboard")
     
     # Example support metrics (replace with actual data)
     metric_cols = st.columns(4)
@@ -203,7 +181,6 @@ def render_support_page(active_filters: Dict):
                 st.error("Failed to load ticket patterns data")
         
         # Detailed Analysis Section
-        st.markdown("---")
         st.subheader("Detailed Analysis")
         
         # Create tabs for different analyses

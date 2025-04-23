@@ -1,16 +1,11 @@
 import streamlit as st
-import snowflake.connector
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+from datetime import datetime, timedelta
+import numpy as np
 from pathlib import Path
 import sys
-from datetime import datetime, timedelta
-
-# Add the src directory to the Python path
-src_path = str(Path(__file__).parent / "src")
-if src_path not in sys.path:
-    sys.path.append(src_path)
-
-# Import custom modules
-from src.data.connection import get_snowflake_session
 from src.ui.theme import apply_theme
 from src.utils.logging import setup_logging
 from src.ui.filters import FilterManager
@@ -22,8 +17,16 @@ from src.pages import (
     segmentation,
     insights
 )
+from src.ui.components import (
+    create_metric_card,
+    create_trend_indicator,
+    create_info_tooltip,
+    create_chart_container,
+    create_section_header
+)
+from src.ui.layout import create_sidebar
 
-# Configure the page
+# Set page config - must be first Streamlit command
 st.set_page_config(
     page_title="Customer Analytics Dashboard",
     page_icon="📊",
@@ -36,6 +39,14 @@ apply_theme()
 
 # Setup logging
 logger = setup_logging()
+
+# Add the src directory to the Python path
+src_path = str(Path(__file__).parent / "src")
+if src_path not in sys.path:
+    sys.path.append(src_path)
+
+# Import custom modules
+from src.data.connection import get_snowflake_session
 
 def main():
     """Main application entry point."""
@@ -53,18 +64,8 @@ def main():
         # Initialize filter manager
         filter_manager = FilterManager()
         
-        # Create main content area with tabs
-        main_tabs = st.tabs([
-            "😊 Sentiment & Experience",
-            "🛠️ Support Operations",
-            "⭐ Product Feedback",
-            "🛣️ Customer Journey",
-            "🎯 Segmentation & Value"
-        ])
-        
         # Sidebar navigation
         st.sidebar.title("Customer Analytics")
-        st.sidebar.markdown("---")
         
         # Global filters section
         st.sidebar.subheader("Global Filters")
@@ -100,27 +101,47 @@ def main():
             key="channels"
         )
         filter_manager.update_filter("channels", channels)
-        
-        # Add filter summary and preset management
-        st.sidebar.markdown("---")
-        filter_manager.render_filter_summary()
+        # Render filter presets
         filter_manager.render_preset_management()
         
-        # Main content area
-        with main_tabs[0]:
-            sentiment.render_sentiment_page(filter_manager.get_active_filters())
+        # Main content area with tabs
+        tab_selected = st.radio(
+            "Navigation",
+            ["😊 Sentiment & Experience", "🛠️ Support Operations", "⭐ Product Feedback", "🛣️ Customer Journey", "🎯 Segmentation & Value"],
+            horizontal=True,
+            label_visibility="collapsed"
+        )
         
-        with main_tabs[1]:
-            support.render_support_page(filter_manager.get_active_filters())
+        # Main content area - only render the selected tab
+        if tab_selected == "😊 Sentiment & Experience":
+            if hasattr(sentiment, 'render_sentiment_page'):
+                sentiment.render_sentiment_page(filter_manager.get_active_filters())
+            else:
+                st.info("Sentiment analysis page is under development")
         
-        with main_tabs[2]:
-            reviews.render_reviews_page(filter_manager.get_active_filters())
+        elif tab_selected == "🛠️ Support Operations":
+            if hasattr(support, 'render_support_page'):
+                support.render_support_page(filter_manager.get_active_filters())
+            else:
+                st.info("Support operations page is under development")
         
-        with main_tabs[3]:
-            journey.render_journey_page(filter_manager.get_active_filters())
+        elif tab_selected == "⭐ Product Feedback":
+            if hasattr(reviews, 'render_reviews_page'):
+                reviews.render_reviews_page(filter_manager.get_active_filters())
+            else:
+                st.info("Product feedback page is under development")
         
-        with main_tabs[4]:
-            segmentation.render_segmentation_page(filter_manager.get_active_filters())
+        elif tab_selected == "🛣️ Customer Journey":
+            if hasattr(journey, 'render_journey_page'):
+                journey.render_journey_page(filter_manager.get_active_filters())
+            else:
+                st.info("Customer journey page is under development")
+        
+        elif tab_selected == "🎯 Segmentation & Value":
+            if hasattr(segmentation, 'render_segmentation_page'):
+                segmentation.render_segmentation_page(filter_manager.get_active_filters())
+            else:
+                st.info("Segmentation page is under development")
             
     except Exception as e:
         st.error(f"An error occurred: {str(e)}")

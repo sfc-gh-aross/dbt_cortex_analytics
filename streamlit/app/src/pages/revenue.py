@@ -10,7 +10,7 @@ def render_revenue_page():
     """Render the Revenue Analytics workspace."""
     try:
         # Page header
-        st.header("Revenue Analytics")
+        st.title("Revenue Analytics Dashboard")
         
         # Create three columns for key metrics
         col1, col2, col3 = st.columns(3)
@@ -116,7 +116,6 @@ def render_revenue_page():
                 st.error("Failed to load customer segments data")
         
         # Detailed Analysis Section
-        st.markdown("---")
         st.subheader("Detailed Analysis")
         
         # Create tabs for different analyses

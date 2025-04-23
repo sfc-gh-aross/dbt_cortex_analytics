@@ -157,34 +157,33 @@ class FilterManager:
     def render_filter_summary(self):
         """Render a summary of active filters."""
         if st.session_state.active_filters:
-            st.subheader("Active Filters")
+            st.sidebar.subheader("Active Filters")
             for filter_name, value in st.session_state.active_filters.items():
                 if value:  # Only show non-empty filters
                     if isinstance(value, (date, datetime)):
-                        st.markdown(f"**{filter_name}**: {value.strftime('%Y-%m-%d')}")
+                        st.sidebar.markdown(f"**{filter_name}**: {value.strftime('%Y-%m-%d')}")
                     elif isinstance(value, list):
-                        st.markdown(f"**{filter_name}**: {', '.join(str(v) for v in value)}")
+                        st.sidebar.markdown(f"**{filter_name}**: {', '.join(str(v) for v in value)}")
                     else:
-                        st.markdown(f"**{filter_name}**: {value}")
+                        st.sidebar.markdown(f"**{filter_name}**: {value}")
     
     def render_preset_management(self):
         """Render the preset management interface."""
-        st.subheader("Filter Presets")
+        st.sidebar.subheader("Filter Presets")
         
         # Save current preset
-        new_preset_name = st.text_input("Save current filters as preset:")
-        if new_preset_name and st.button("Save Preset"):
+        new_preset_name = st.sidebar.text_input("Save current filters as preset:")
+        if new_preset_name and st.sidebar.button("Save Preset"):
             self.save_current_preset(new_preset_name)
         
         # Load/Delete presets
         if st.session_state.saved_presets:
-            st.markdown("---")
-            st.markdown("**Saved Presets**")
+            st.sidebar.markdown("**Saved Presets**")
             for preset_name in st.session_state.saved_presets:
-                col1, col2 = st.columns([3, 1])
+                col1, col2 = st.sidebar.columns([3, 1])
                 with col1:
-                    if st.button(f"Load: {preset_name}"):
+                    if st.sidebar.button(f"Load: {preset_name}"):
                         self.load_preset(preset_name)
                 with col2:
-                    if st.button(f"Delete: {preset_name}"):
+                    if st.sidebar.button(f"Delete: {preset_name}"):
                         self.delete_preset(preset_name) 

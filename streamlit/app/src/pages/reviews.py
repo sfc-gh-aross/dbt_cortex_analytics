@@ -13,29 +13,9 @@ from typing import Dict
 
 def render_reviews_page(active_filters: Dict):
     """Render the product feedback page with applied filters."""
-    st.title("Product Feedback Analysis")
-    
-    # Display active filters summary
-    st.markdown("### Applied Filters")
-    filter_cols = st.columns(3)
-    
-    with filter_cols[0]:
-        if "date_range" in active_filters:
-            start_date, end_date = active_filters["date_range"]
-            st.metric("Date Range", f"{start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
-    
-    with filter_cols[1]:
-        if "personas" in active_filters:
-            personas = active_filters["personas"]
-            st.metric("Customer Personas", ", ".join(personas) if personas else "All")
-    
-    with filter_cols[2]:
-        if "channels" in active_filters:
-            channels = active_filters["channels"]
-            st.metric("Channels", ", ".join(channels) if channels else "All")
+    st.title("Product Reviews Analysis")
     
     # Main content
-    st.markdown("---")
     
     # Example review metrics (replace with actual data)
     metric_cols = st.columns(4)
@@ -99,6 +79,11 @@ def render_reviews_page(active_filters: Dict):
             try:
                 ratings_data = execute_query(ratings_query)
                 df_ratings = pd.DataFrame(ratings_data, columns=['product_id', 'avg_rating', 'review_count', 'unique_customers'])
+                # Ensure proper data types
+                df_ratings['product_id'] = df_ratings['product_id'].astype('string')
+                df_ratings['avg_rating'] = pd.to_numeric(df_ratings['avg_rating'], errors='coerce').astype('float64')
+                df_ratings['review_count'] = pd.to_numeric(df_ratings['review_count'], errors='coerce').astype('Int64')
+                df_ratings['unique_customers'] = pd.to_numeric(df_ratings['unique_customers'], errors='coerce').astype('Int64')
                 
                 if not df_ratings.empty:
                     fig = px.bar(

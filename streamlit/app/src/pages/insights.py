@@ -22,7 +22,14 @@ def get_interaction_summaries():
         ORDER BY customer_id;
     """
     data = execute_query(summary_query)
-    return pd.DataFrame(data, columns=['customer_id', 'customer_summary'])
+    # Convert data to proper format and types
+    df = pd.DataFrame(
+        {
+            'customer_id': [str(row['customer_id']) for row in data],
+            'customer_summary': [str(row['customer_summary']) for row in data]
+        }
+    )
+    return df
 
 @handle_error
 def get_sentiment_history():
