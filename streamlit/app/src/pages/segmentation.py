@@ -59,16 +59,57 @@ def render_segmentation_page(active_filters: Dict):
             # Segment Analysis
             st.subheader("Segment Analysis")
             # Add segment analysis content here
+            st.write("Detailed analysis of customer segments will be displayed here.")
+            st.write("For example, charts showing segment size, demographics, or behavior patterns.")
+            # Placeholder for a segment comparison chart
+            segment_comparison_data = pd.DataFrame({
+                'Metric': ['Avg Purchase Freq', 'Avg Basket Size', 'CLV'],
+                'High Value': [5.2, 150, 2500],
+                'Medium Value': [3.1, 85, 1200],
+                'Low Value': [1.5, 40, 450]
+            }).set_index('Metric') # Set index here for easier melting
+            st.dataframe(segment_comparison_data) # Keep the table for reference
+
+            # Reshape data for Plotly Express (long format)
+            segment_comparison_long = segment_comparison_data.reset_index().melt(
+                id_vars='Metric', 
+                var_name='Segment', 
+                value_name='Value'
+            )
+
+            # Create grouped bar chart
+            fig = px.bar(
+                segment_comparison_long, 
+                x='Metric', 
+                y='Value', 
+                color='Segment', 
+                barmode='group',
+                title="Segment Comparison by Metric"
+            )
+            st.plotly_chart(fig, use_container_width=True)
         
         with tab2:
             # Value Metrics
             st.subheader("Value Metrics")
             # Add value metrics content here
-        
+            st.write("Key value metrics across all segments will be shown here.")
+            # Placeholder metrics
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Overall Average CLV", "$1150")
+                st.metric("Overall Purchase Frequency", "3.5 times/year")
+            with col2:
+                st.metric("Overall Average Basket Size", "$95")
+                st.metric("Customer Acquisition Cost (CAC)", "$50")
+
         with tab3:
             # Raw Data View
             st.subheader("Raw Data")
             # Add raw data view content here
+            st.write("Displaying the raw data table used for segmentation and value analysis.")
+            # Placeholder for raw data table (using the segment_data as an example)
+            st.dataframe(segment_data) # Using the previously defined segment_data for now
+            st.write("Filters can be applied to explore the raw data.")
             
     except Exception as e:
         st.error(f"An error occurred: {str(e)}")

@@ -28,22 +28,6 @@ def render_journey_page(active_filters: Dict):
     with metric_cols[3]:
         st.metric("Time to Conversion", "30 days", "-3 days")
     
-    # Example journey stages chart (replace with actual data)
-    st.markdown("### Journey Stage Progression")
-    stage_data = pd.DataFrame({
-        'Stage': ["Awareness", "Consideration", "Decision", "Purchase", "Retention"],
-        'Users': [1000, 800, 600, 400, 300]
-    })
-    st.bar_chart(stage_data.set_index('Stage'))
-    
-    # Example journey timeline (replace with actual data)
-    st.markdown("### Journey Timeline")
-    timeline_data = pd.DataFrame({
-        'Date': pd.date_range(start='2023-01-01', periods=12, freq='M'),
-        'Users': [1000, 900, 800, 700, 600, 500, 400, 300, 200, 100, 50, 25]
-    })
-    st.line_chart(timeline_data.set_index('Date'))
-
     try:
         # Page header
         st.header("Customer Journey Analytics")
@@ -58,17 +42,31 @@ def render_journey_page(active_filters: Dict):
         with tab1:
             # Journey Stages Analysis
             st.subheader("Journey Stages Analysis")
-            # Add journey stages analysis content here
+            stage_data = pd.DataFrame({
+                'Stage': ["Awareness", "Consideration", "Decision", "Purchase", "Retention"],
+                'Users': [1000, 800, 600, 400, 300]
+            })
+            st.bar_chart(stage_data.set_index('Stage'))
         
         with tab2:
             # Interaction Analysis
             st.subheader("Interaction Analysis")
-            # Add interaction analysis content here
+            timeline_data = pd.DataFrame({
+                'Date': pd.date_range(start='2023-01-01', periods=12, freq='M'),
+                'Users': [1000, 900, 800, 700, 600, 500, 400, 300, 200, 100, 50, 25]
+            })
+            st.line_chart(timeline_data.set_index('Date'))
         
         with tab3:
             # Raw Data View
             st.subheader("Raw Data")
-            # Add raw data view content here
+            raw_data_placeholder = pd.DataFrame({
+                'CustomerID': [1, 2, 3, 4, 5],
+                'InteractionType': ['View', 'Click', 'Purchase', 'View', 'Click'],
+                'Timestamp': pd.to_datetime(['2023-01-10', '2023-01-11', '2023-01-12', '2023-01-13', '2023-01-14']),
+                'Value': [10, 0, 150, 25, 0]
+            })
+            st.dataframe(raw_data_placeholder)
             
     except Exception as e:
         st.error(f"An error occurred: {str(e)}")

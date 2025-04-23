@@ -78,16 +78,25 @@ def render_reviews_page(active_filters: Dict):
             """
             try:
                 ratings_data = execute_query(ratings_query)
-                df_ratings = pd.DataFrame(ratings_data, columns=['product_id', 'avg_rating', 'review_count', 'unique_customers'])
+                # Use uppercase column names to match Snowflake's output
+                df_ratings = pd.DataFrame(ratings_data, columns=['PRODUCT_ID', 'AVG_RATING', 'REVIEW_COUNT', 'UNIQUE_CUSTOMERS'])
+                
+                # Rename columns to lowercase for consistency within the app
+                df_ratings.columns = ['product_id', 'avg_rating', 'review_count', 'unique_customers']
+                
                 # Ensure proper data types
                 df_ratings['product_id'] = df_ratings['product_id'].astype('string')
                 df_ratings['avg_rating'] = pd.to_numeric(df_ratings['avg_rating'], errors='coerce').astype('float64')
                 df_ratings['review_count'] = pd.to_numeric(df_ratings['review_count'], errors='coerce').astype('Int64')
                 df_ratings['unique_customers'] = pd.to_numeric(df_ratings['unique_customers'], errors='coerce').astype('Int64')
                 
-                if not df_ratings.empty:
+                # Fill NA values in 'review_count' with 0 for the size parameter
+                df_ratings_plot = df_ratings.copy()
+                df_ratings_plot['review_count'] = df_ratings_plot['review_count'].fillna(0)
+                
+                if not df_ratings_plot.empty:
                     fig = px.bar(
-                        df_ratings,
+                        df_ratings_plot,  # Use the DataFrame with NAs handled
                         x='product_id',
                         y='avg_rating',
                         color='review_count',
@@ -117,14 +126,24 @@ def render_reviews_page(active_filters: Dict):
             """
             try:
                 sentiment_data = execute_query(sentiment_query)
-                df_sentiment = pd.DataFrame(sentiment_data, columns=['product_id', 'avg_sentiment', 'review_count'])
+                
+                # Use uppercase column names to match Snowflake's output
+                df_sentiment = pd.DataFrame(sentiment_data, columns=['PRODUCT_ID', 'AVG_SENTIMENT', 'REVIEW_COUNT'])
+                
+                # Rename columns to lowercase for consistency
+                df_sentiment.columns = ['product_id', 'avg_sentiment', 'review_count']
+                
+                # Ensure proper data types and handle potential NaNs for size parameter
+                df_sentiment['product_id'] = df_sentiment['product_id'].astype('string')
+                df_sentiment['avg_sentiment'] = pd.to_numeric(df_sentiment['avg_sentiment'], errors='coerce').astype('float64')
+                df_sentiment['review_count'] = pd.to_numeric(df_sentiment['review_count'], errors='coerce').fillna(0).astype('Int64')
                 
                 if not df_sentiment.empty:
-                    fig = px.scatter(
+                    fig = px.bar(
                         df_sentiment,
                         x='product_id',
                         y='avg_sentiment',
-                        size='review_count',
+                        color='review_count',
                         title='Sentiment Analysis by Product',
                         labels={
                             'product_id': 'Product ID',
@@ -150,8 +169,23 @@ def render_reviews_page(active_filters: Dict):
             """
             try:
                 volume_data = execute_query(volume_query)
-                df_volume = pd.DataFrame(volume_data, columns=['month', 'review_count'])
+                # st.write("Raw SQL Results:", volume_data) # Remove this line
                 
+                # Create DataFrame using the ACTUAL uppercase column names from query results
+                df_volume = pd.DataFrame(volume_data, columns=['MONTH', 'REVIEW_COUNT']) 
+                
+                # Rename columns to lowercase for consistency
+                df_volume.columns = ['month', 'review_count']
+
+                # Ensure proper data types for plotting
+                df_volume['month'] = pd.to_datetime(df_volume['month'], errors='coerce')
+                df_volume['review_count'] = pd.to_numeric(df_volume['review_count'], errors='coerce').fillna(0).astype(int)
+
+                # Drop rows where month conversion might have failed
+                df_volume.dropna(subset=['month'], inplace=True)
+
+                # st.dataframe(df_volume) # Remove this line
+
                 if not df_volume.empty:
                     fig = px.line(
                         df_volume,

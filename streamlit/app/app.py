@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 import numpy as np
 from pathlib import Path
 import sys
-from src.ui.theme import apply_theme
+# from src.ui.theme import apply_theme
 from src.utils.logging import setup_logging
 from src.ui.filters import FilterManager
 from src.pages import (
@@ -35,7 +35,7 @@ st.set_page_config(
 )
 
 # Apply custom theme
-apply_theme()
+# apply_theme()
 
 # Setup logging
 logger = setup_logging()
