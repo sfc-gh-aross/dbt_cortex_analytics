@@ -346,19 +346,16 @@ A well-organized project structure is crucial for maintainability and collaborat
 │   └── secrets.toml         # Store Snowflake credentials and other secrets
 │   └── config.toml          # Streamlit theme and configuration options
 ├── app.py                   # Main Streamlit application script (entry point)
-├── pages/                   # Directory for individual Streamlit pages (tabs)
-│   ├── 01_Overview_Dashboard.py
-│   ├── 02_Sentiment_Experience.py
-│   ├── 03_Support_Operations.py
-│   ├── 04_Product_Feedback.py
-│   ├── 05_Customer_Segmentation.py
-│   └── (Optional)_Individual_Customer.py
 ├── src/                     # Source code directory for modularity
+│   ├── components/          # Reusable UI components
+│   │   ├── overview_dashboard.py
+│   │   ├── customer_insights.py
+│   │   └── product_analytics.py
 │   ├── __init__.py
 │   ├── data_loader.py       # Functions to connect to Snowflake and fetch data
 │   ├── charts.py            # Functions to generate Plotly/Streamlit charts
 │   ├── filters.py           # Logic for handling sidebar filters
-│   ├── processing.py        # Data processing/transformation functions (if needed)
+│   ├── processing.py        # Data processing/transformation functions
 │   └── utils.py             # General utility functions
 ├── assets/                  # Static assets (images, custom CSS if unavoidable)
 │   └── logo.png
@@ -374,11 +371,14 @@ A well-organized project structure is crucial for maintainability and collaborat
 **Explanation:**
 
 *   **`.streamlit/`**: Standard Streamlit directory for configuration (`config.toml`) and secrets management (`secrets.toml`).
-*   **`app.py`**: The main entry point for the Streamlit application. It might handle global setup, sidebar definition (if not handled by pages individually), and potentially routing or initial page display if not using the `pages/` directory structure directly.
-*   **`pages/`**: Leverages Streamlit's native multi-page app feature. Each `.py` file in this directory corresponds to a tab/page in the application, automatically creating the navigation. Naming convention (`01_`, `02_`) defines the order.
+*   **`app.py`**: The main entry point for the Streamlit application. It handles global setup, sidebar definition, and tab navigation using `st.tabs()`.
+*   **`src/components/`**: Contains modular UI components for each tab of the application:
+    *   **`overview_dashboard.py`**: Component for the Overview Dashboard tab
+    *   **`customer_insights.py`**: Component for the Customer Insights tab
+    *   **`product_analytics.py`**: Component for the Product Analytics tab
 *   **`src/`**: A dedicated source directory to keep the codebase organized and modular.
     *   **`data_loader.py`**: Centralizes all Snowflake connection logic and data fetching queries. This promotes reuse and makes managing database interactions easier. Use Streamlit caching (`@st.cache_data`) within these functions.
-    *   **`charts.py`**: Contains functions dedicated to creating the various charts (line, bar, scatter, plotly) used across different pages. This avoids code duplication in the page scripts.
+    *   **`charts.py`**: Contains functions dedicated to creating the various charts (line, bar, scatter, plotly) used across different components.
     *   **`filters.py`**: Encapsulates the logic for creating and managing the global sidebar filters and applying them to the data.
     *   **`processing.py`**: If any complex data transformations are needed after fetching from Snowflake but before visualization, place them here.
     *   **`utils.py`**: For miscellaneous helper functions used across the application.
@@ -388,4 +388,4 @@ A well-organized project structure is crucial for maintainability and collaborat
 *   **`requirements.txt`**: Lists all Python package dependencies and their versions, ensuring reproducible environments.
 *   **`README.md`**: Essential documentation explaining what the project is, how to set it up, run it, and contribute.
 
-This structure separates concerns (data loading, visualization, page layout), making the application easier to understand, test, and maintain as it grows.
+This structure separates concerns (data loading, visualization, component layout), making the application easier to understand, test, and maintain as it grows. The use of components instead of pages allows for better code organization and reusability while maintaining a single-page application experience.

@@ -20,13 +20,11 @@ A centralized dashboard for analyzing customer data from various sources includi
 │   └── secrets.toml         # Snowflake credentials
 │   └── config.toml          # Streamlit configuration
 ├── app.py                   # Main application entry point
-├── pages/                   # Individual Streamlit pages
-│   ├── 01_Overview_Dashboard.py
-│   ├── 02_Sentiment_Experience.py
-│   ├── 03_Support_Operations.py
-│   ├── 04_Product_Feedback.py
-│   └── 05_Customer_Segmentation.py
 ├── src/                     # Source code modules
+│   ├── components/          # Reusable UI components
+│   │   ├── overview_dashboard.py
+│   │   ├── customer_insights.py
+│   │   └── product_analytics.py
 │   ├── data_loader.py       # Snowflake connection and queries
 │   ├── charts.py            # Visualization functions
 │   ├── filters.py           # Filter logic
