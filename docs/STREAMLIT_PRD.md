@@ -336,9 +336,9 @@ The application will be structured using `st.tabs` for clear navigation between 
 * Brand style guide
 * Security policies
 
-## 13. Recommended Project Structure
+## 13. Project Structure
 
-A well-organized project structure is crucial for maintainability and collaboration. Here's a recommended structure for this Streamlit application:
+The application follows a modular structure designed for maintainability and scalability:
 
 ```
 .
@@ -346,27 +346,23 @@ A well-organized project structure is crucial for maintainability and collaborat
 │   └── secrets.toml         # Store Snowflake credentials and other secrets
 │   └── config.toml          # Streamlit theme and configuration options
 ├── app.py                   # Main Streamlit application script (entry point)
-├── pages/                   # Directory for individual Streamlit pages (tabs)
-│   ├── 01_Overview_Dashboard.py
-│   ├── 02_Sentiment_Experience.py
-│   ├── 03_Support_Operations.py
-│   ├── 04_Product_Feedback.py
-│   ├── 05_Customer_Segmentation.py
-│   └── (Optional)_Individual_Customer.py
 ├── src/                     # Source code directory for modularity
-│   ├── __init__.py
-│   ├── data_loader.py       # Functions to connect to Snowflake and fetch data
-│   ├── charts.py            # Functions to generate Plotly/Streamlit charts
-│   ├── filters.py           # Logic for handling sidebar filters
-│   ├── processing.py        # Data processing/transformation functions (if needed)
-│   └── utils.py             # General utility functions
+│   ├── components/          # Reusable UI components
+│   │   ├── overview_dashboard.py
+│   │   ├── sentiment_experience.py
+│   │   ├── support_operations.py
+│   │   ├── product_feedback.py
+│   │   └── customer_segmentation.py
+│   ├── queries/            # SQL query definitions
+│   │   ├── overview_queries.py
+│   │   ├── sentiment_queries.py
+│   │   ├── support_queries.py
+│   │   ├── product_queries.py
+│   │   └── segmentation_queries.py
+│   └── utils/              # Utility functions
+│       └── db.py           # Database connection and query execution
 ├── assets/                  # Static assets (images, custom CSS if unavoidable)
-│   └── logo.png
-│   └── custom_style.css
 ├── tests/                   # Unit and integration tests
-│   ├── test_data_loader.py
-│   └── test_processing.py
-├── .gitignore               # Specifies intentionally untracked files
 ├── requirements.txt         # Project dependencies
 └── README.md                # Project overview, setup instructions
 ```
@@ -374,18 +370,21 @@ A well-organized project structure is crucial for maintainability and collaborat
 **Explanation:**
 
 *   **`.streamlit/`**: Standard Streamlit directory for configuration (`config.toml`) and secrets management (`secrets.toml`).
-*   **`app.py`**: The main entry point for the Streamlit application. It might handle global setup, sidebar definition (if not handled by pages individually), and potentially routing or initial page display if not using the `pages/` directory structure directly.
-*   **`pages/`**: Leverages Streamlit's native multi-page app feature. Each `.py` file in this directory corresponds to a tab/page in the application, automatically creating the navigation. Naming convention (`01_`, `02_`) defines the order.
+*   **`app.py`**: The main entry point for the Streamlit application. Handles global setup, sidebar definition, and tab navigation.
 *   **`src/`**: A dedicated source directory to keep the codebase organized and modular.
-    *   **`data_loader.py`**: Centralizes all Snowflake connection logic and data fetching queries. This promotes reuse and makes managing database interactions easier. Use Streamlit caching (`@st.cache_data`) within these functions.
-    *   **`charts.py`**: Contains functions dedicated to creating the various charts (line, bar, scatter, plotly) used across different pages. This avoids code duplication in the page scripts.
-    *   **`filters.py`**: Encapsulates the logic for creating and managing the global sidebar filters and applying them to the data.
-    *   **`processing.py`**: If any complex data transformations are needed after fetching from Snowflake but before visualization, place them here.
-    *   **`utils.py`**: For miscellaneous helper functions used across the application.
-*   **`assets/`**: For static files like logos, images, or custom CSS (though native Streamlit theming is preferred).
+    *   **`components/`**: Contains reusable UI components for each major section of the dashboard. Each component is responsible for its own layout and data visualization.
+    *   **`queries/`**: Contains SQL query definitions organized by feature area. This separation makes it easier to maintain and update queries.
+    *   **`utils/`**: Contains utility functions, particularly database connection and query execution logic.
+*   **`assets/`**: For static files like logos, images, or custom CSS.
 *   **`tests/`**: Contains automated tests to ensure code correctness and prevent regressions.
-*   **`.gitignore`**: Standard Git file to exclude unnecessary files/folders (e.g., `__pycache__`, virtual environments) from version control.
-*   **`requirements.txt`**: Lists all Python package dependencies and their versions, ensuring reproducible environments.
+*   **`requirements.txt`**: Lists all Python package dependencies and their versions.
 *   **`README.md`**: Essential documentation explaining what the project is, how to set it up, run it, and contribute.
 
-This structure separates concerns (data loading, visualization, page layout), making the application easier to understand, test, and maintain as it grows.
+This structure promotes:
+* Separation of concerns (UI, data, business logic)
+* Code reusability through components
+* Maintainable and testable code
+* Clear organization of SQL queries
+* Easy addition of new features
+* Consistent error handling
+* Efficient caching strategies
