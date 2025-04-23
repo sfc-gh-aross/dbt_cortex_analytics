@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from src.data.connection import execute_query
 from src.utils.logging import log_query_execution, log_error
 from src.utils.ui import (
@@ -19,7 +19,7 @@ from src.utils.ui_enhanced import (
     enhanced_dataframe,
     with_loading_and_feedback
 )
-from typing import Dict
+from typing import Dict, List, Optional
 import os
 
 @with_loading_and_feedback(
@@ -27,35 +27,99 @@ import os
     success_message=None,
     error_message="Failed to load sentiment data"
 )
-def get_sentiment_data():
-    """Fetch sentiment distribution data."""
-    sentiment_query = """
-        SELECT 
-            CASE 
-                WHEN sentiment_score < -0.3 THEN 'Negative'
-                WHEN sentiment_score > 0.3 THEN 'Positive'
-                ELSE 'Neutral'
-            END as sentiment_category,
-            COUNT(*) as count,
-            ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 2) as percentage
-        FROM ANALYTICS.SENTIMENT_ANALYSIS
-        GROUP BY sentiment_category
-        ORDER BY count DESC;
+@handle_error
+def get_sentiment_data(active_filters: Dict) -> List[Dict]:
+    """Fetch and filter sentiment distribution data based on active filters."""
+    base_query = """
+        SELECT
+            sa.customer_id,
+            sa.interaction_date,
+            sa.sentiment_score,
+            sa.source_type,
+            cb.persona
+        FROM ANALYTICS.SENTIMENT_ANALYSIS sa
+        LEFT JOIN ANALYTICS.CUSTOMER_BASE cb ON sa.customer_id = cb.customer_id
+        WHERE sa.interaction_date IS NOT NULL
+          AND sa.sentiment_score IS NOT NULL
+          AND cb.persona IS NOT NULL;
     """
     try:
-        data = execute_query(sentiment_query)
-        # Convert to list of dictionaries with proper types
-        result = []
-        for row in data:
-            result.append({
-                'sentiment_category': str(row['SENTIMENT_CATEGORY']),
-                'count': int(row['COUNT']),
-                'percentage': float(row['PERCENTAGE'])
-            })
+        data = execute_query(base_query)
+        if not data:
+            return []
+
+        # Convert to DataFrame
+        df = pd.DataFrame(data, columns=['CUSTOMER_ID', 'INTERACTION_DATE', 'SENTIMENT_SCORE', 'SOURCE_TYPE', 'PERSONA'])
+
+        # Ensure correct data types
+        df['INTERACTION_DATE'] = pd.to_datetime(df['INTERACTION_DATE']).dt.date
+        df['SENTIMENT_SCORE'] = pd.to_numeric(df['SENTIMENT_SCORE'], errors='coerce')
+        df = df.dropna(subset=['INTERACTION_DATE', 'SENTIMENT_SCORE', 'PERSONA']) # Drop rows where conversion failed or persona is null
+
+        # Apply filters
+        # Date Range Filter
+        date_range = active_filters.get("date_range")
+        if date_range and isinstance(date_range, (list, tuple)) and len(date_range) == 2:
+            start_date, end_date = date_range
+            # Ensure start/end_date are date objects if they aren't already
+            if isinstance(start_date, datetime): start_date = start_date.date()
+            if isinstance(end_date, datetime): end_date = end_date.date()
+            if isinstance(start_date, date) and isinstance(end_date, date):
+                 df = df[(df['INTERACTION_DATE'] >= start_date) & (df['INTERACTION_DATE'] <= end_date)]
+
+        # Persona Filter (REMOVED)
+        # personas = active_filters.get("personas")
+        # if personas and "All" not in personas:
+        #     df = df[df['PERSONA'].isin(personas)]
+
+        # Channel Filter (mapping to source_type)
+        # channels = active_filters.get("channels")
+        # if channels and "All" not in channels:
+        #      # Map Streamlit channel names to source_type values if necessary
+        #      # Assuming direct mapping for now: Email/Chat/Phone -> interaction, Social -> review? Ticket -> ticket?
+        #      # This mapping needs refinement based on actual data and filter definitions.
+        #      # For now, let's assume a simple direct mapping if possible, or adjust based on `source_type` values
+        #      # Example: if channels are ['Email', 'Chat'], map them to relevant source_types
+        #      # Temporary simple mapping:
+        #      source_type_mapping = {
+        #          "Email": "interaction",
+        #          "Chat": "interaction",
+        #          "Phone": "interaction",
+        #          "Social": "review", # Guessing - needs verification
+        #          "Ticket": "ticket"  # Guessing - needs verification
+        #      }
+        #      mapped_source_types = [source_type_mapping.get(ch) for ch in channels if source_type_mapping.get(ch)]
+        #      if mapped_source_types: # Only filter if we have valid mappings
+        #          df = df[df['SOURCE_TYPE'].isin(mapped_source_types)]
+
+        # Perform aggregation *after* filtering
+        if df.empty:
+             return []
+
+        def categorize_sentiment(score):
+            if score < -0.3: return 'Negative'
+            if score > 0.3: return 'Positive'
+            return 'Neutral'
+
+        df['sentiment_category'] = df['SENTIMENT_SCORE'].apply(categorize_sentiment)
+
+        sentiment_counts = df['sentiment_category'].value_counts().reset_index()
+        sentiment_counts.columns = ['sentiment_category', 'count']
+
+        total_count = sentiment_counts['count'].sum()
+        if total_count > 0:
+             sentiment_counts['percentage'] = round((sentiment_counts['count'] / total_count) * 100, 2)
+        else:
+             sentiment_counts['percentage'] = 0.0
+
+        # Sort and convert to list of dicts
+        result = sentiment_counts.sort_values(by='count', ascending=False).to_dict('records')
         return result
+
     except Exception as e:
-        st.error(f"Error processing sentiment data: {str(e)}")
-        st.write("Raw data:", data)
+        log_error(f"Error processing sentiment data with filters: {str(e)}")
+        st.error(f"An error occurred while processing sentiment data: {str(e)}")
+        # Optionally return sample/empty data or re-raise
         return []
 
 @handle_error
@@ -215,33 +279,20 @@ def render_sentiment_page(active_filters: Dict):
         with col1:
             # Sentiment Distribution Chart
             with st.spinner("Loading sentiment distribution..."):
-                df_sentiment = get_sentiment_data()
-                # --- DEBUGGING START ---
-                # st.write("Debug: Sentiment data received:", df_sentiment) 
+                # Pass active_filters to the data fetching function
+                df_sentiment = get_sentiment_data(active_filters)
+                # --- DEBUGGING START --- (Removed debug prints)
                 # --- DEBUGGING END ---
                 if df_sentiment:
                     try:
-                        # --- DEBUGGING START ---
-                        # st.write("Debug: Attempting to generate pie chart with data:", df_sentiment)
-                        # --- DEBUGGING END ---
-                        
                         # Convert to DataFrame before plotting
                         df_sentiment_pd = pd.DataFrame(df_sentiment)
                         
-                        # --- TEST: Use st.bar_chart (Commented Out) ---
-                        # st.write("Debug: Attempting st.bar_chart") # Add temp debug
-                        # Prepare data for st.bar_chart (needs index)
-                        # df_st_chart = df_sentiment_pd.set_index('sentiment_category')
-                        # Select only the numerical column to plot
-                        # st.bar_chart(df_st_chart[['count']])
-                        # --- END TEST ---
-
                         # --- Minimal Plotly Bar Chart ---
                         fig = px.bar(
                             df_sentiment_pd,
                             x='sentiment_category',
                             y='count'
-                            # Minimal settings: Removed color, title etc.
                         )
                         st.plotly_chart(fig, use_container_width=True)
                         # --- END Minimal Plotly Bar Chart ---

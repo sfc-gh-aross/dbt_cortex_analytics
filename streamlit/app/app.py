@@ -25,6 +25,7 @@ from src.ui.components import (
     create_section_header
 )
 from src.ui.layout import create_sidebar
+from src.data.connection import get_snowflake_session, execute_query
 
 # Set page config - must be first Streamlit command
 st.set_page_config(
@@ -46,7 +47,8 @@ if src_path not in sys.path:
     sys.path.append(src_path)
 
 # Import custom modules
-from src.data.connection import get_snowflake_session
+# Removed get_snowflake_session import here as it's imported again below? Keeping the one from data.connection
+# from src.data.connection import get_snowflake_session 
 
 def main():
     """Main application entry point."""
@@ -57,9 +59,11 @@ def main():
         
         # Initialize date range defaults ONLY if not already set by a loaded preset
         if "start_date" not in st.session_state:
-            st.session_state.start_date = datetime.now().date() - timedelta(days=30)
+            # st.session_state.start_date = datetime.now().date() - timedelta(days=30)
+            st.session_state.start_date = date(2024, 1, 1) # New default start date
         if "end_date" not in st.session_state:
-            st.session_state.end_date = datetime.now().date()
+            # st.session_state.end_date = datetime.now().date()
+            st.session_state.end_date = date(2026, 1, 1) # New default end date
         
         # Initialize filter manager (this ensures st.session_state.active_filters exists)
         filter_manager = FilterManager()
@@ -87,37 +91,38 @@ def main():
         # Update active_filters with the *current* output of the widget for this run
         filter_manager.update_filter("date_range", date_range_widget_output)
         
-        # --- Persona filter --- 
-        persona_options = ["All", "Enterprise", "SMB", "Startup", "Individual"]
-        # Get current value from active_filters if it exists, otherwise use default
-        personas_val = st.session_state.active_filters.get("personas", ["All"]) # Default to ["All"]
-        # Ensure it's a list
-        if not isinstance(personas_val, list):
-            personas_val = ["All"]
-            
-        personas_widget_output = st.sidebar.multiselect(
-            "Customer Personas",
-            options=persona_options,
-            default=personas_val, # Use value from active_filters or default
-            key="personas"
-        )
-        filter_manager.update_filter("personas", personas_widget_output)
+        # --- Persona filter --- (REMOVED)
+        # # Fetch persona options dynamically
+        # persona_options = get_persona_options() 
+        # # Get current value from active_filters if it exists, otherwise use default
+        # personas_val = st.session_state.active_filters.get("personas", ["All"]) # Default to ["All"]
+        # # Ensure it's a list
+        # if not isinstance(personas_val, list):
+        #     personas_val = ["All"]
+        #     
+        # personas_widget_output = st.sidebar.multiselect(
+        #     "Customer Personas",
+        #     options=persona_options,
+        #     default=personas_val, # Use value from active_filters or default
+        #     key="personas"
+        # )
+        # filter_manager.update_filter("personas", personas_widget_output)
         
         # --- Channel filter --- 
-        channel_options = ["All", "Email", "Chat", "Phone", "Social"]
-        # Get current value from active_filters if it exists, otherwise use default
-        channels_val = st.session_state.active_filters.get("channels", ["All"]) # Default to ["All"]
-        # Ensure it's a list
-        if not isinstance(channels_val, list):
-             channels_val = ["All"]
-             
-        channels_widget_output = st.sidebar.multiselect(
-            "Channels",
-            options=channel_options,
-            default=channels_val, # Use value from active_filters or default
-            key="channels"
-        )
-        filter_manager.update_filter("channels", channels_widget_output)
+        # channel_options = ["All", "Email", "Chat", "Phone", "Social"]
+        # # Get current value from active_filters if it exists, otherwise use default
+        # channels_val = st.session_state.active_filters.get("channels", ["All"]) # Default to ["All"]
+        # # Ensure it's a list
+        # if not isinstance(channels_val, list):
+        #      channels_val = ["All"]
+        #      
+        # channels_widget_output = st.sidebar.multiselect(
+        #     "Channels",
+        #     options=channel_options,
+        #     default=channels_val, # Use value from active_filters or default
+        #     key="channels"
+        # )
+        # filter_manager.update_filter("channels", channels_widget_output)
         
         # Render filter presets (contains load/save buttons which trigger reruns)
         # filter_manager.render_preset_management()
