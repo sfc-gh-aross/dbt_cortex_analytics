@@ -25,6 +25,17 @@ A centralized dashboard for analyzing customer data from various sources includi
 │   │   ├── overview_dashboard.py
 │   │   ├── customer_insights.py
 │   │   └── product_analytics.py
+│   ├── queries/            # SQL queries organized by component
+│   │   ├── overview_dashboard/
+│   │   │   ├── kpi_queries.sql
+│   │   │   ├── sentiment_queries.sql
+│   │   │   └── churn_queries.sql
+│   │   ├── customer_insights/
+│   │   │   ├── persona_queries.sql
+│   │   │   └── interaction_queries.sql
+│   │   └── product_analytics/
+│   │       ├── review_queries.sql
+│   │       └── rating_queries.sql
 │   ├── data_loader.py       # Snowflake connection and queries
 │   ├── charts.py            # Visualization functions
 │   ├── filters.py           # Filter logic

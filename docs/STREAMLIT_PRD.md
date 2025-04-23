@@ -351,6 +351,17 @@ A well-organized project structure is crucial for maintainability and collaborat
 │   │   ├── overview_dashboard.py
 │   │   ├── customer_insights.py
 │   │   └── product_analytics.py
+│   ├── queries/            # SQL queries organized by component
+│   │   ├── overview_dashboard/
+│   │   │   ├── kpi_queries.sql
+│   │   │   ├── sentiment_queries.sql
+│   │   │   └── churn_queries.sql
+│   │   ├── customer_insights/
+│   │   │   ├── persona_queries.sql
+│   │   │   └── interaction_queries.sql
+│   │   └── product_analytics/
+│   │       ├── review_queries.sql
+│   │       └── rating_queries.sql
 │   ├── __init__.py
 │   ├── data_loader.py       # Functions to connect to Snowflake and fetch data
 │   ├── charts.py            # Functions to generate Plotly/Streamlit charts
@@ -376,16 +387,36 @@ A well-organized project structure is crucial for maintainability and collaborat
     *   **`overview_dashboard.py`**: Component for the Overview Dashboard tab
     *   **`customer_insights.py`**: Component for the Customer Insights tab
     *   **`product_analytics.py`**: Component for the Product Analytics tab
+*   **`src/queries/`**: Contains all SQL queries organized by component and functionality:
+    *   **`overview_dashboard/`**: Queries for the Overview Dashboard
+        *   **`kpi_queries.sql`**: Queries for KPI metrics
+        *   **`sentiment_queries.sql`**: Queries for sentiment analysis
+        *   **`churn_queries.sql`**: Queries for churn risk analysis
+    *   **`customer_insights/`**: Queries for Customer Insights
+        *   **`persona_queries.sql`**: Queries for persona analysis
+        *   **`interaction_queries.sql`**: Queries for customer interactions
+    *   **`product_analytics/`**: Queries for Product Analytics
+        *   **`review_queries.sql`**: Queries for product reviews
+        *   **`rating_queries.sql`**: Queries for rating analysis
 *   **`src/`**: A dedicated source directory to keep the codebase organized and modular.
-    *   **`data_loader.py`**: Centralizes all Snowflake connection logic and data fetching queries. This promotes reuse and makes managing database interactions easier. Use Streamlit caching (`@st.cache_data`) within these functions.
+    *   **`data_loader.py`**: Centralizes all Snowflake connection logic and data fetching. This module reads and executes queries from the `queries/` directory.
     *   **`charts.py`**: Contains functions dedicated to creating the various charts (line, bar, scatter, plotly) used across different components.
     *   **`filters.py`**: Encapsulates the logic for creating and managing the global sidebar filters and applying them to the data.
     *   **`processing.py`**: If any complex data transformations are needed after fetching from Snowflake but before visualization, place them here.
     *   **`utils.py`**: For miscellaneous helper functions used across the application.
-*   **`assets/`**: For static files like logos, images, or custom CSS (though native Streamlit theming is preferred).
-*   **`tests/`**: Contains automated tests to ensure code correctness and prevent regressions.
-*   **`.gitignore`**: Standard Git file to exclude unnecessary files/folders (e.g., `__pycache__`, virtual environments) from version control.
-*   **`requirements.txt`**: Lists all Python package dependencies and their versions, ensuring reproducible environments.
-*   **`README.md`**: Essential documentation explaining what the project is, how to set it up, run it, and contribute.
+
+**SQL Query Organization Guidelines:**
+
+1. **Modularity**: Each query file should focus on a specific aspect of the dashboard (e.g., KPIs, sentiment, churn).
+2. **Reusability**: Common query patterns should be extracted into reusable CTEs or views.
+3. **Documentation**: Each query file should include:
+   * Purpose of the query
+   * Input parameters
+   * Expected output format
+   * Any dependencies on other queries
+4. **Version Control**: Track changes to queries separately from application code.
+5. **Testing**: Include sample data and expected results for query testing.
+6. **Performance**: Optimize queries for execution time and resource usage.
+7. **Maintainability**: Use consistent naming conventions and formatting.
 
 This structure separates concerns (data loading, visualization, component layout), making the application easier to understand, test, and maintain as it grows. The use of components instead of pages allows for better code organization and reusability while maintaining a single-page application experience.
