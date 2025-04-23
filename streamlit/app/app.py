@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import numpy as np
 from pathlib import Path
 import sys
@@ -55,13 +55,13 @@ def main():
         if "snowflake_session" not in st.session_state:
             st.session_state.snowflake_session = get_snowflake_session()
         
-        # Initialize date range if not set
+        # Initialize date range defaults ONLY if not already set by a loaded preset
         if "start_date" not in st.session_state:
-            st.session_state.start_date = datetime.now() - timedelta(days=30)
+            st.session_state.start_date = datetime.now().date() - timedelta(days=30)
         if "end_date" not in st.session_state:
-            st.session_state.end_date = datetime.now()
+            st.session_state.end_date = datetime.now().date()
         
-        # Initialize filter manager
+        # Initialize filter manager (this ensures st.session_state.active_filters exists)
         filter_manager = FilterManager()
         
         # Sidebar navigation
@@ -70,40 +70,61 @@ def main():
         # Global filters section
         st.sidebar.subheader("Global Filters")
         
-        # Date range filter
-        date_range = st.sidebar.date_input(
+        # --- Date range filter --- 
+        # Get current value from active_filters if it exists, otherwise use defaults
+        # Ensure the value is a tuple of date objects
+        date_range_val = st.session_state.active_filters.get("date_range")
+        if not (isinstance(date_range_val, (tuple, list)) and len(date_range_val) == 2 and all(isinstance(d, date) for d in date_range_val)):
+             # Fallback to initial defaults if not set or invalid in active_filters
+             date_range_val = (st.session_state.start_date, st.session_state.end_date)
+        
+        # Instantiate the widget, setting its value based on active_filters or defaults
+        date_range_widget_output = st.sidebar.date_input(
             "Date Range",
-            value=(st.session_state.start_date, st.session_state.end_date),
+            value=date_range_val,
             key="date_range"
         )
-        filter_manager.update_filter("date_range", date_range)
+        # Update active_filters with the *current* output of the widget for this run
+        filter_manager.update_filter("date_range", date_range_widget_output)
         
-        # Persona filter with search
+        # --- Persona filter --- 
         persona_options = ["All", "Enterprise", "SMB", "Startup", "Individual"]
-        persona_search = st.sidebar.text_input("Search Personas", key="persona_search")
-        filtered_personas = [p for p in persona_options if persona_search.lower() in p.lower()]
-        personas = st.sidebar.multiselect(
+        # Get current value from active_filters if it exists, otherwise use default
+        personas_val = st.session_state.active_filters.get("personas", ["All"]) # Default to ["All"]
+        # Ensure it's a list
+        if not isinstance(personas_val, list):
+            personas_val = ["All"]
+            
+        personas_widget_output = st.sidebar.multiselect(
             "Customer Personas",
-            options=filtered_personas,
-            default=["All"],
+            options=persona_options,
+            default=personas_val, # Use value from active_filters or default
             key="personas"
         )
-        filter_manager.update_filter("personas", personas)
+        filter_manager.update_filter("personas", personas_widget_output)
         
-        # Channel filter with search
+        # --- Channel filter --- 
         channel_options = ["All", "Email", "Chat", "Phone", "Social"]
-        channel_search = st.sidebar.text_input("Search Channels", key="channel_search")
-        filtered_channels = [c for c in channel_options if channel_search.lower() in c.lower()]
-        channels = st.sidebar.multiselect(
+        # Get current value from active_filters if it exists, otherwise use default
+        channels_val = st.session_state.active_filters.get("channels", ["All"]) # Default to ["All"]
+        # Ensure it's a list
+        if not isinstance(channels_val, list):
+             channels_val = ["All"]
+             
+        channels_widget_output = st.sidebar.multiselect(
             "Channels",
-            options=filtered_channels,
-            default=["All"],
+            options=channel_options,
+            default=channels_val, # Use value from active_filters or default
             key="channels"
         )
-        filter_manager.update_filter("channels", channels)
-        # Render filter presets
-        filter_manager.render_preset_management()
+        filter_manager.update_filter("channels", channels_widget_output)
         
+        # Render filter presets (contains load/save buttons which trigger reruns)
+        # filter_manager.render_preset_management()
+        
+        # Render filter summary (optional, shows applied filters)
+        filter_manager.render_filter_summary()
+
         # Main content area with tabs
         tab_selected = st.radio(
             "Navigation",
