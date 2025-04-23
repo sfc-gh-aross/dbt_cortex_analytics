@@ -108,18 +108,6 @@ echo -e "$commit_message" # Use -e to interpret backslashes like
 echo "--------------------"
 git commit -m "$commit_message"
 
-# Ask for confirmation before pushing
-read -p "Are you sure you want to push these changes to origin/$current_branch? (y/n): " confirm
-
-# Convert input to lowercase
-confirm_lower=$(echo "$confirm" | tr '[:upper:]' '[:lower:]')
-
-# Check confirmation
-if [[ "$confirm_lower" != "y" && "$confirm_lower" != "yes" ]]; then
-  echo "Push aborted by user."
-  exit 1
-fi
-
 # 4. Push to remote (origin) and current branch
 current_branch=$(git rev-parse --abbrev-ref HEAD)
 echo "Pushing to origin/$current_branch..."
