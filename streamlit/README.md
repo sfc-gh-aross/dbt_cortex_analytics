@@ -20,21 +20,18 @@ A centralized dashboard for analyzing customer data from various sources includi
 │   └── secrets.toml         # Snowflake credentials
 │   └── config.toml          # Streamlit configuration
 ├── app.py                   # Main application entry point
+├── pages/                   # Individual Streamlit pages
+│   ├── 01_Overview_Dashboard.py
+│   ├── 02_Sentiment_Experience.py
+│   ├── 03_Support_Operations.py
+│   ├── 04_Product_Feedback.py
+│   └── 05_Customer_Segmentation.py
 ├── src/                     # Source code modules
-│   ├── components/          # Reusable UI components
-│   │   ├── overview_dashboard.py
-│   │   ├── sentiment_experience.py
-│   │   ├── support_operations.py
-│   │   ├── product_feedback.py
-│   │   └── customer_segmentation.py
-│   ├── queries/            # SQL query definitions
-│   │   ├── overview_queries.py
-│   │   ├── sentiment_queries.py
-│   │   ├── support_queries.py
-│   │   ├── product_queries.py
-│   │   └── segmentation_queries.py
-│   └── utils/              # Utility functions
-│       └── db.py           # Database connection and query execution
+│   ├── data_loader.py       # Snowflake connection and queries
+│   ├── charts.py            # Visualization functions
+│   ├── filters.py           # Filter logic
+│   ├── processing.py        # Data transformations
+│   └── utils.py             # Utility functions
 ├── assets/                  # Static assets
 ├── tests/                   # Unit and integration tests
 ├── requirements.txt         # Dependencies
