@@ -1,0 +1,14 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+/streamlit/[README.md](mdc:streamlit/README.md)
+[SNOWFLAKE_TABLES.txt](mdc:docs/SNOWFLAKE_TABLES.txt)
+[STREAMLIT_PRD.md](mdc:docs/STREAMLIT_PRD.md)
+[STREAMLIT_PROMPT.md](mdc:docs/STREAMLIT_PROMPT.md)
+[STREAMLIT_QUERIES.md](mdc:docs/STREAMLIT_QUERIES.md)
+
+- always develop streamlit code in the /streamlit directory
+- always follow the file and folder structure in [STREAMLIT_PRD.md](mdc:docs/STREAMLIT_PRD.md)
+- always use live snowflake data, do not hard-code values or generate mock data
