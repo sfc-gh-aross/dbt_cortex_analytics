@@ -14,6 +14,8 @@ A centralized dashboard for analyzing customer data from various sources includi
 * Daily refresh for historical trends and aggregated statistics
 
 ## Architecture & Folder Structure
+The application follows a strict folder structure for maintainability and consistency:
+
 ```
 .
 ├── .streamlit/
@@ -46,6 +48,19 @@ A centralized dashboard for analyzing customer data from various sources includi
 ├── requirements.txt         # Dependencies
 └── README.md               # This file
 ```
+
+**Structure Requirements:**
+1. All dashboard components MUST be placed in `/src/components/`
+2. All SQL queries MUST be placed in `/src/queries/` organized by component
+3. Each component MUST have its own subdirectory in `/src/queries/` for its queries
+4. No SQL queries should be hardcoded in Python files
+5. All queries must be loaded using the `load_query` function
+
+**Naming Conventions:**
+- Component files: `lowercase_with_underscores.py`
+- Query files: `lowercase_with_underscores.sql`
+- Component directories: `lowercase_with_underscores`
+- Query directories: `lowercase_with_underscores`
 
 ## Setup & Installation
 1. Clone the repository

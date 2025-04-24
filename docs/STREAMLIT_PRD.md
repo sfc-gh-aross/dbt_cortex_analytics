@@ -336,9 +336,9 @@ The application will be structured using `st.tabs` for clear navigation between 
 * Brand style guide
 * Security policies
 
-## 13. Recommended Project Structure
+## 13. Required Project Structure
 
-A well-organized project structure is crucial for maintainability and collaboration. Here's a recommended structure for this Streamlit application:
+The application MUST follow this exact folder structure for maintainability and consistency:
 
 ```
 .
@@ -369,54 +369,22 @@ A well-organized project structure is crucial for maintainability and collaborat
 │   ├── processing.py        # Data processing/transformation functions
 │   └── utils.py             # General utility functions
 ├── assets/                  # Static assets (images, custom CSS if unavoidable)
-│   └── logo.png
-│   └── custom_style.css
 ├── tests/                   # Unit and integration tests
-│   ├── test_data_loader.py
-│   └── test_processing.py
-├── .gitignore               # Specifies intentionally untracked files
 ├── requirements.txt         # Project dependencies
 └── README.md                # Project overview, setup instructions
 ```
 
-**Explanation:**
+**Structure Requirements:**
+1. All dashboard components MUST be placed in `/src/components/`
+2. All SQL queries MUST be placed in `/src/queries/` organized by component
+3. Each component MUST have its own subdirectory in `/src/queries/` for its queries
+4. No SQL queries should be hardcoded in Python files
+5. All queries must be loaded using the `load_query` function
 
-*   **`.streamlit/`**: Standard Streamlit directory for configuration (`config.toml`) and secrets management (`secrets.toml`).
-*   **`app.py`**: The main entry point for the Streamlit application. It handles global setup, sidebar definition, and tab navigation using `st.tabs()`.
-*   **`src/components/`**: Contains modular UI components for each tab of the application:
-    *   **`overview_dashboard.py`**: Component for the Overview Dashboard tab
-    *   **`customer_insights.py`**: Component for the Customer Insights tab
-    *   **`product_analytics.py`**: Component for the Product Analytics tab
-*   **`src/queries/`**: Contains all SQL queries organized by component and functionality:
-    *   **`overview_dashboard/`**: Queries for the Overview Dashboard
-        *   **`kpi_queries.sql`**: Queries for KPI metrics
-        *   **`sentiment_queries.sql`**: Queries for sentiment analysis
-        *   **`churn_queries.sql`**: Queries for churn risk analysis
-    *   **`customer_insights/`**: Queries for Customer Insights
-        *   **`persona_queries.sql`**: Queries for persona analysis
-        *   **`interaction_queries.sql`**: Queries for customer interactions
-    *   **`product_analytics/`**: Queries for Product Analytics
-        *   **`review_queries.sql`**: Queries for product reviews
-        *   **`rating_queries.sql`**: Queries for rating analysis
-*   **`src/`**: A dedicated source directory to keep the codebase organized and modular.
-    *   **`data_loader.py`**: Centralizes all Snowflake connection logic and data fetching. This module reads and executes queries from the `queries/` directory.
-    *   **`charts.py`**: Contains functions dedicated to creating the various charts (line, bar, scatter, plotly) used across different components.
-    *   **`filters.py`**: Encapsulates the logic for creating and managing the global sidebar filters and applying them to the data.
-    *   **`processing.py`**: If any complex data transformations are needed after fetching from Snowflake but before visualization, place them here.
-    *   **`utils.py`**: For miscellaneous helper functions used across the application.
-
-**SQL Query Organization Guidelines:**
-
-1. **Modularity**: Each query file should focus on a specific aspect of the dashboard (e.g., KPIs, sentiment, churn).
-2. **Reusability**: Common query patterns should be extracted into reusable CTEs or views.
-3. **Documentation**: Each query file should include:
-   * Purpose of the query
-   * Input parameters
-   * Expected output format
-   * Any dependencies on other queries
-4. **Version Control**: Track changes to queries separately from application code.
-5. **Testing**: Include sample data and expected results for query testing.
-6. **Performance**: Optimize queries for execution time and resource usage.
-7. **Maintainability**: Use consistent naming conventions and formatting.
+**Naming Conventions:**
+- Component files: `lowercase_with_underscores.py`
+- Query files: `lowercase_with_underscores.sql`
+- Component directories: `lowercase_with_underscores`
+- Query directories: `lowercase_with_underscores`
 
 This structure separates concerns (data loading, visualization, component layout), making the application easier to understand, test, and maintain as it grows. The use of components instead of pages allows for better code organization and reusability while maintaining a single-page application experience.
