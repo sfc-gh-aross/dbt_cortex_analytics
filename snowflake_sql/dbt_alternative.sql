@@ -371,9 +371,11 @@ SELECT
     
     -- Churn risk
     CASE
-        WHEN st.avg_sentiment < -0.5 AND COALESCE(tpat.ticket_count, 0) >= 2 AND st.sentiment_trend < 0 THEN 'High'
-        WHEN st.avg_sentiment < -0.3 OR (COALESCE(tpat.ticket_count, 0) >= 3 AND st.sentiment_trend < 0) THEN 'Medium'
-        WHEN st.sentiment_trend < -0.4 THEN 'Medium'
+        WHEN (st.avg_sentiment < -0.3 AND COALESCE(tpat.ticket_count, 0) >= 1) 
+             OR (st.sentiment_trend < -0.2 AND COALESCE(tpat.ticket_count, 0) >= 1)
+             OR (st.avg_sentiment < -0.2 AND st.sentiment_trend < -0.1) THEN 'High'
+        WHEN (st.avg_sentiment < -0.1 AND st.sentiment_trend < 0) 
+             OR (COALESCE(tpat.ticket_count, 0) >= 2) THEN 'Medium'
         ELSE 'Low'
     END AS churn_risk,
     
