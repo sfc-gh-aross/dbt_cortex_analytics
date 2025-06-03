@@ -4,11 +4,6 @@
 
 ---
 
-## 0  Using this PRD with Cursor.ai
-Feed each numbered *Prompt Block* (🔹) directly into Cursor.ai. Prompt Blocks are written as clear, single‑shot instructions so Cursor.ai can generate code, SQL, or documentation without further context. Execute them in the given order or cherry‑pick as needed.
-
----
-
 ## 1  Folder & File Layout  🔹Prompt Block 1
 """
 Create the following repository skeleton:

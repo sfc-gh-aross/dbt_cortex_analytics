@@ -47,13 +47,13 @@ def calculate_delta(trend_series, is_count_metric=False):
             
         return ((current - previous) / abs(previous)) * 100
 
-def get_smoothed_trend_data(df, column_name, window=7):
+def get_smoothed_trend_data(df, column_name, window=30):
     """Get smoothed trend data using a moving average.
     
     Args:
         df: DataFrame containing the trend data, must have a 'date' column or index.
         column_name: Name of the column to smooth.
-        window: Window size for moving average (default: 7 days).
+        window: Window size for moving average (default: 30 days).
         
     Returns:
         pd.Series: Smoothed trend data, or None if input is invalid.

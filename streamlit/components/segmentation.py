@@ -147,7 +147,7 @@ def render_segmentation(filters: dict, debug_mode: bool = False) -> None:
                 "help": kpi["help"],
                 "timeframe": "Summary" # Using a generic timeframe as these are summary stats
             })
-        render_simple_kpis(simple_kpis, columns=len(simple_kpis))
+        render_simple_kpis(simple_kpis, columns=4)
     # --- End KPIs ---
     
     st.markdown("""

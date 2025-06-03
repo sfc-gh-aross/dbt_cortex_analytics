@@ -232,13 +232,13 @@ def calculate_delta(trend_series, is_count_metric=False):
             
         return ((current - previous) / abs(previous)) * 100
 
-def get_smoothed_trend_data(df, column_name, window=7):
+def get_smoothed_trend_data(df, column_name, window=30):
     """Get smoothed trend data using a moving average.
     
     Args:
         df: DataFrame containing the trend data
         column_name: Name of the column to smooth
-        window: Window size for moving average (default: 7 days)
+        window: Window size for moving average (default: 30 days)
         
     Returns:
         pd.Series: Smoothed trend data
@@ -314,76 +314,75 @@ def render_overview(filters: dict, debug_mode: bool = False) -> None:
             )
     
     # Key Metrics Section
-    with st.expander("Key Metrics", expanded=True):
-        # Format KPIs with null checks, trend indicators, and sparklines
-        kpis = [
-            {
-                "label": "Avg Sentiment",
-                "value": f"{kpi_data['AVG_SENTIMENT'].iloc[0]:.2f}" if not kpi_data.empty and kpi_data['AVG_SENTIMENT'].iloc[0] is not None else "N/A",
-                "delta": calculate_delta(get_trend_data(sentiment_trend, 'AVG_SENTIMENT')),
-                "timeframe": "Week",
-                "help": """
-                Average sentiment score across all customer interactions.
-                - Range: -1.0 (very negative) to 1.0 (very positive)
-                - Based on natural language processing of customer feedback
-                - Updated daily from all communication channels
-                """,
-                "trend_data": get_smoothed_trend_data(sentiment_trend, 'AVG_SENTIMENT')
-            },
-            {
-                "label": "Total Interactions",
-                "value": f"{kpi_data['TOTAL_INTERACTIONS'].iloc[0]:,}" if not kpi_data.empty and kpi_data['TOTAL_INTERACTIONS'].iloc[0] is not None else "N/A",
-                "delta": calculate_delta(get_trend_data(interaction_trend, 'INTERACTION_COUNT'), is_count_metric=True),
-                "timeframe": "Week",
-                "help": """
-                Total number of customer interactions analyzed.
-                - Includes support tickets, reviews, and feedback
-                - Covers all communication channels
-                - Used to calculate engagement metrics
-                - Week-over-week change shown as percentage
-                """,
-                "trend_data": get_smoothed_trend_data(interaction_trend, 'INTERACTION_COUNT')
-            },
-            {
-                "label": "High Risk %",
-                "value": f"{kpi_data['HIGH_RISK_PCT'].iloc[0]:.1f}%" if not kpi_data.empty and kpi_data['HIGH_RISK_PCT'].iloc[0] is not None else "N/A",
-                "delta": calculate_delta(get_trend_data(risk_trend, 'HIGH_RISK_PCT')),
-                "timeframe": "Week",
-                "help": """
-                Percentage of customers identified as high churn risk.
-                - Based on sentiment analysis and engagement patterns
-                - High risk: < 0.3 sentiment score
-                - Medium risk: 0.3-0.6 sentiment score
-                - Low risk: > 0.6 sentiment score
-                """,
-                "trend_data": get_smoothed_trend_data(risk_trend, 'HIGH_RISK_PCT')
-            },
-            {
-                "label": "Avg Rating",
-                "value": f"{kpi_data['AVG_RATING'].iloc[0]:.1f}" if not kpi_data.empty and kpi_data['AVG_RATING'].iloc[0] is not None else "N/A",
-                "delta": calculate_delta(get_trend_data(rating_trend, 'AVG_RATING')),
-                "timeframe": "Week",
-                "help": """
-                Average product rating from customer reviews.
-                - Scale: 1-5 stars
-                - Weighted by review recency
-                - Excludes spam and duplicate reviews
-                """,
-                "trend_data": get_smoothed_trend_data(rating_trend, 'AVG_RATING')
-            }
-        ]
-        
-        # Render KPI cards with enhanced styling
-        render_kpis(kpis)
-        
-        # Add download button for KPI data at the bottom
-        st.download_button(
-            label="⇓ Download KPI Data",
-            data=json.dumps(kpi_data.to_dict(orient='records'), indent=2, default=decimal_to_float),
-            file_name="kpi_data.json",
-            mime="application/json",
-            help="Download the current KPI data as JSON"
-        )
+    # Format KPIs with null checks, trend indicators, and sparklines
+    kpis = [
+        {
+            "label": "Avg Sentiment",
+            "value": f"{kpi_data['AVG_SENTIMENT'].iloc[0]:.2f}" if not kpi_data.empty and kpi_data['AVG_SENTIMENT'].iloc[0] is not None else "N/A",
+            "delta": calculate_delta(get_trend_data(sentiment_trend, 'AVG_SENTIMENT')),
+            "timeframe": "Week",
+            "help": """
+            Average sentiment score across all customer interactions.
+            - Range: -1.0 (very negative) to 1.0 (very positive)
+            - Based on natural language processing of customer feedback
+            - Updated daily from all communication channels
+            """,
+            "trend_data": get_smoothed_trend_data(sentiment_trend, 'AVG_SENTIMENT')
+        },
+        {
+            "label": "Total Interactions",
+            "value": f"{kpi_data['TOTAL_INTERACTIONS'].iloc[0]:,}" if not kpi_data.empty and kpi_data['TOTAL_INTERACTIONS'].iloc[0] is not None else "N/A",
+            "delta": calculate_delta(get_trend_data(interaction_trend, 'INTERACTION_COUNT'), is_count_metric=True),
+            "timeframe": "Week",
+            "help": """
+            Total number of customer interactions analyzed.
+            - Includes support tickets, reviews, and feedback
+            - Covers all communication channels
+            - Used to calculate engagement metrics
+            - Week-over-week change shown as percentage
+            """,
+            "trend_data": get_smoothed_trend_data(interaction_trend, 'INTERACTION_COUNT')
+        },
+        {
+            "label": "High Risk %",
+            "value": f"{kpi_data['HIGH_RISK_PCT'].iloc[0]:.1f}%" if not kpi_data.empty and kpi_data['HIGH_RISK_PCT'].iloc[0] is not None else "N/A",
+            "delta": calculate_delta(get_trend_data(risk_trend, 'HIGH_RISK_PCT')),
+            "timeframe": "Week",
+            "help": """
+            Percentage of customers identified as high churn risk.
+            - Based on sentiment analysis and engagement patterns
+            - High risk: < 0.3 sentiment score
+            - Medium risk: 0.3-0.6 sentiment score
+            - Low risk: > 0.6 sentiment score
+            """,
+            "trend_data": get_smoothed_trend_data(risk_trend, 'HIGH_RISK_PCT')
+        },
+        {
+            "label": "Avg Rating",
+            "value": f"{kpi_data['AVG_RATING'].iloc[0]:.1f}" if not kpi_data.empty and kpi_data['AVG_RATING'].iloc[0] is not None else "N/A",
+            "delta": calculate_delta(get_trend_data(rating_trend, 'AVG_RATING')),
+            "timeframe": "Week",
+            "help": """
+            Average product rating from customer reviews.
+            - Scale: 1-5 stars
+            - Weighted by review recency
+            - Excludes spam and duplicate reviews
+            """,
+            "trend_data": get_smoothed_trend_data(rating_trend, 'AVG_RATING')
+        }
+    ]
+    
+    # Render KPI cards with enhanced styling
+    render_kpis(kpis, columns=4)
+    
+    # Add download button for KPI data at the bottom
+    st.download_button(
+        label="⇓ Download KPI Data",
+        data=json.dumps(kpi_data.to_dict(orient='records'), indent=2, default=decimal_to_float),
+        file_name="kpi_data.json",
+        mime="application/json",
+        help="Download the current KPI data as JSON"
+    )
     
     # Sentiment Analysis Section
     with st.expander("Sentiment Analysis", expanded=True):

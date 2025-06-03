@@ -26,13 +26,13 @@ def decimal_to_float(obj):
         return obj.tolist()
     raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 
-def get_smoothed_trend_data(df, column_name, window=7):
+def get_smoothed_trend_data(df, column_name, window=30):
     """Get smoothed trend data using a moving average.
     
     Args:
         df: DataFrame containing the trend data
         column_name: Name of the column to smooth
-        window: Window size for moving average (default: 7 days)
+        window: Window size for moving average (default: 30 days)
         
     Returns:
         pd.Series: Smoothed trend data
@@ -129,118 +129,117 @@ def render_sentiment_experience(filters: Dict[str, Any], debug_mode: bool = Fals
         st.write("Sentiment Time DF Sample:", sentiment_time_df.head())
     
     # Key Metrics Section
-    with st.expander("Key Metrics", expanded=True):
-        try:
-            # 1. Sentiment Consistency Score (standard deviation of sentiment scores)
-            sentiment_consistency = sentiment_by_persona_df['sentiment_volatility'].mean()
-            sentiment_consistency_trend = get_smoothed_trend_data(
-                sentiment_by_persona_df.groupby('date')['sentiment_volatility'].mean().reset_index(),
-                'sentiment_volatility'
-            )
-            
-            # 2. Cross-channel Sentiment Alignment (correlation between different channel sentiments)
-            channel_pivot = channel_alignment_df.pivot(index='date', columns='source_type', values='avg_sentiment')
-            channel_correlation = channel_pivot.corr().mean().mean() if channel_pivot.shape[1] > 1 else 0.0
-            channel_alignment_trend = get_smoothed_trend_data(
-                channel_alignment_df.groupby('date')['avg_sentiment'].std().reset_index(),
-                'avg_sentiment'
-            )
-            
-            # 3. Customer Experience Score (weighted average of sentiment, rating, and support metrics)
-            daily_experience_score = (
-                sentiment_time_df.groupby('date')['avg_sentiment'].mean() * 0.4 +
-                (1 - sentiment_by_persona_df.groupby('date')['sentiment_volatility'].mean()) * 0.3 +
-                channel_alignment_df.groupby('date')['avg_sentiment'].std() * 0.3
-            )
-            experience_score_trend = daily_experience_score.rolling(window=7, min_periods=1).mean()
-            experience_score = daily_experience_score.mean()
-            
-            # 4. Sentiment Recovery Rate (% of negative sentiments followed by positive ones)
-            def rolling_recovery_rate(sentiments, window=30):
-                rates = []
-                for i in range(len(sentiments)):
-                    start = max(0, i - window + 1)
-                    window_sents = sentiments[start:i+1]
-                    neg_to_pos = sum(1 for j in range(len(window_sents)-1) if window_sents[j] < 0 and window_sents[j+1] > 0)
-                    total_neg = sum(1 for j in range(len(window_sents)-1) if window_sents[j] < 0)
-                    rate = (neg_to_pos / total_neg * 100) if total_neg > 0 else np.nan
-                    rates.append(rate)
-                return rates
-            sentiment_recovery_df_sorted = sentiment_recovery_df.sort_values('date')
-            sentiments = sentiment_recovery_df_sorted['avg_sentiment'].values
-            daily_recovery_rates = pd.Series(rolling_recovery_rate(sentiments, window=30), index=sentiment_recovery_df_sorted['date'])
-            recovery_trend = daily_recovery_rates.rolling(window=7, min_periods=1).mean()  # Apply 7-day smoothing
-            recovery_rate = np.nanmean(recovery_trend)
-            
-            # Calculate deltas for each KPI using trend data
-            def calculate_delta(trend_data):
-                if trend_data is None or len(trend_data) < 7:
-                    return 0.0
-                current = trend_data.iloc[-1]
-                previous = trend_data.iloc[-7]
-                if previous == 0:
-                    return 0.0
-                return ((current - previous) / abs(previous)) * 100
+    try:
+        # 1. Sentiment Consistency Score (standard deviation of sentiment scores)
+        sentiment_consistency = sentiment_by_persona_df['sentiment_volatility'].mean()
+        sentiment_consistency_trend = get_smoothed_trend_data(
+            sentiment_by_persona_df.groupby('date')['sentiment_volatility'].mean().reset_index(),
+            'sentiment_volatility'
+        )
+        
+        # 2. Cross-channel Sentiment Alignment (correlation between different channel sentiments)
+        channel_pivot = channel_alignment_df.pivot(index='date', columns='source_type', values='avg_sentiment')
+        channel_correlation = channel_pivot.corr().mean().mean() if channel_pivot.shape[1] > 1 else 0.0
+        channel_alignment_trend = get_smoothed_trend_data(
+            channel_alignment_df.groupby('date')['avg_sentiment'].std().reset_index(),
+            'avg_sentiment'
+        )
+        
+        # 3. Customer Experience Score (weighted average of sentiment, rating, and support metrics)
+        daily_experience_score = (
+            sentiment_time_df.groupby('date')['avg_sentiment'].mean() * 0.4 +
+            (1 - sentiment_by_persona_df.groupby('date')['sentiment_volatility'].mean()) * 0.3 +
+            channel_alignment_df.groupby('date')['avg_sentiment'].std() * 0.3
+        )
+        experience_score_trend = daily_experience_score.rolling(window=7, min_periods=1).mean()
+        experience_score = daily_experience_score.mean()
+        
+        # 4. Sentiment Recovery Rate (% of negative sentiments followed by positive ones)
+        def rolling_recovery_rate(sentiments, window=2):
+            rates = []
+            for i in range(len(sentiments)):
+                start = max(0, i - window + 1)
+                window_sents = sentiments[start:i+1]
+                neg_to_pos = sum(1 for j in range(len(window_sents)-1) if window_sents[j] < 0 and window_sents[j+1] > 0)
+                total_neg = sum(1 for j in range(len(window_sents)-1) if window_sents[j] < 0)
+                rate = (neg_to_pos / total_neg * 100) if total_neg > 0 else np.nan
+                rates.append(rate)
+            return rates
+        sentiment_recovery_df_sorted = sentiment_recovery_df.sort_values('date')
+        sentiments = sentiment_recovery_df_sorted['avg_sentiment'].values
+        daily_recovery_rates = pd.Series(rolling_recovery_rate(sentiments, window=2), index=sentiment_recovery_df_sorted['date'])
+        recovery_trend = daily_recovery_rates.rolling(window=7, min_periods=1).mean()  # Apply 7-day smoothing
+        recovery_rate = np.nanmean(recovery_trend)
+        
+        # Calculate deltas for each KPI using trend data
+        def calculate_delta(trend_data):
+            if trend_data is None or len(trend_data) < 7:
+                return 0.0
+            current = trend_data.iloc[-1]
+            previous = trend_data.iloc[-7]
+            if previous == 0:
+                return 0.0
+            return ((current - previous) / abs(previous)) * 100
 
-            kpi_data = [
-                {
-                    "label": "Sentiment Consistency",
-                    "value": f"{sentiment_consistency:.2f}",
-                    "help": "Standard deviation of sentiment scores across all interactions",
-                    "trend_data": sentiment_consistency_trend,
-                    "delta": calculate_delta(sentiment_consistency_trend)
-                },
-                {
-                    "label": "Channel Alignment",
-                    "value": f"{channel_correlation:.2f}",
-                    "help": "Correlation between sentiment scores across different channels",
-                    "trend_data": channel_alignment_trend,
-                    "delta": calculate_delta(channel_alignment_trend)
-                },
-                {
-                    "label": "Experience Score",
-                    "value": f"{experience_score:.2f}",
-                    "help": "Weighted average of sentiment, support metrics, and channel alignment",
-                    "trend_data": experience_score_trend,
-                    "delta": calculate_delta(experience_score_trend)
-                },
-                {
-                    "label": "Recovery Rate",
-                    "value": f"{recovery_rate:.1f}%",
-                    "help": "Percentage of negative sentiments followed by positive ones",
-                    "trend_data": recovery_trend,
-                    "delta": calculate_delta(recovery_trend)
-                }
-            ]
-            
-            render_kpis(kpi_data)
-            
-            # Add download button for KPI data
-            kpi_data_for_json = [
-                {
-                    "label": kpi["label"],
-                    "value": kpi["value"],
-                    "help": kpi["help"],
-                    "delta": kpi["delta"],
-                    "trend_data": kpi["trend_data"].tolist() if isinstance(kpi["trend_data"], pd.Series) else None
-                }
-                for kpi in kpi_data
-            ]
-            
-            st.download_button(
-                label="⇓ Download KPI Data",
-                data=json.dumps(kpi_data_for_json, indent=2, default=decimal_to_float),
-                file_name="sentiment_kpi_data.json",
-                mime="application/json",
-                help="Download the current KPI data as JSON",
-                key="download_kpi_data"
-            )
-            
-        except KeyError as e:
-            st.error(f"Error calculating KPIs: Missing column {str(e)}")
-            if debug_mode:
-                st.write("Available columns:", sentiment_time_df.columns.tolist())
-            return
+        kpi_data = [
+            {
+                "label": "Sentiment Consistency",
+                "value": f"{sentiment_consistency:.2f}",
+                "help": "Standard deviation of sentiment scores across all interactions",
+                "trend_data": sentiment_consistency_trend,
+                "delta": calculate_delta(sentiment_consistency_trend)
+            },
+            {
+                "label": "Channel Alignment",
+                "value": f"{channel_correlation:.2f}",
+                "help": "Correlation between sentiment scores across different channels",
+                "trend_data": channel_alignment_trend,
+                "delta": calculate_delta(channel_alignment_trend)
+            },
+            {
+                "label": "Experience Score",
+                "value": f"{experience_score:.2f}",
+                "help": "Weighted average of sentiment, support metrics, and channel alignment",
+                "trend_data": experience_score_trend,
+                "delta": calculate_delta(experience_score_trend)
+            },
+            {
+                "label": "Recovery Rate",
+                "value": f"{recovery_rate:.1f}%",
+                "help": "Percentage of negative sentiments followed by positive ones",
+                "trend_data": recovery_trend,
+                "delta": calculate_delta(recovery_trend)
+            }
+        ]
+        
+        render_kpis(kpi_data, columns=4)
+        
+        # Add download button for KPI data
+        kpi_data_for_json = [
+            {
+                "label": kpi["label"],
+                "value": kpi["value"],
+                "help": kpi["help"],
+                "delta": kpi["delta"],
+                "trend_data": kpi["trend_data"].tolist() if isinstance(kpi["trend_data"], pd.Series) else None
+            }
+            for kpi in kpi_data
+        ]
+        
+        st.download_button(
+            label="⇓ Download KPI Data",
+            data=json.dumps(kpi_data_for_json, indent=2, default=decimal_to_float),
+            file_name="sentiment_kpi_data.json",
+            mime="application/json",
+            help="Download the current KPI data as JSON",
+            key="download_kpi_data"
+        )
+        
+    except KeyError as e:
+        st.error(f"Error calculating KPIs: Missing column {str(e)}")
+        if debug_mode:
+            st.write("Available columns:", sentiment_time_df.columns.tolist())
+        return
     
     # Sentiment Over Time Section
     with st.expander("Sentiment Over Time", expanded=True):
