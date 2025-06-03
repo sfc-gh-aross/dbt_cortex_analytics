@@ -1,390 +1,413 @@
-# Customer Analytics Streamlit Application - PRD
+# Customer Analytics Streamlit Application – PRD
 
-**Version:** 1.0.1
-**Date:** {{ TODAY'S DATE }}
-**Author:** AI Assistant (Gemini) & User
-**Last Updated:** {{ TODAY'S DATE }}
+**Version:** 2.1   **Date:** 25 Apr 2025   **Author:** Alex Ross 
 
-## 1. Introduction & Goals
+---
 
-**Purpose:** To create an interactive, visually appealing, and insightful Streamlit application for analyzing customer data derived from various sources (interactions, product reviews, support tickets). The application aims to provide actionable insights into customer sentiment, support effectiveness, product feedback, and overall customer health.
+## 0  Using this PRD with Cursor.ai
+Feed each numbered *Prompt Block* (🔹) directly into Cursor.ai. Prompt Blocks are written as clear, single‑shot instructions so Cursor.ai can generate code, SQL, or documentation without further context. Execute them in the given order or cherry‑pick as needed.
 
-**Goals:**
-*   Provide a centralized dashboard for key customer metrics.
-*   Visualize sentiment trends and distributions across different customer touchpoints.
-*   Analyze support ticket patterns, priorities, and potential bottlenecks.
-*   Surface insights from product reviews, including multi-lingual feedback.
-*   Enable segmentation and analysis based on customer personas, value, churn risk, and upsell opportunities.
-*   Offer interactive filtering capabilities for focused analysis.
-*   Adhere to best practices for UI/UX, ensuring the app is intuitive, performant, and aesthetically pleasing.
+---
 
-**Success Metrics:**
-* **User Adoption:** Track daily/weekly active users across different roles
-* **Performance:** Page load times < 2 seconds for main dashboard, < 1 second for filtered views
-* **User Satisfaction:** Collect feedback through a built-in feedback widget
-* **Business Impact:** Monitor actions taken based on insights (e.g., successful interventions for high-risk customers)
-
-## 2. Target Audience
-
-*   **Customer Success Managers (CSMs):** To monitor individual customer health, sentiment, and identify at-risk customers or upsell opportunities.
-*   **Support Managers:** To analyze ticket volumes, priorities, categories, and agent performance (if agent data were included).
-*   **Product Managers:** To understand product feedback, feature requests, and sentiment related to specific products (if product ID filtering is added).
-*   **Marketing Analysts:** To understand customer personas, segment audiences, and analyze sentiment trends.
-*   **Executives:** To get a high-level overview of customer satisfaction, churn risk, and overall business health related to customer experience.
-
-**User Stories:**
-* As a CSM, I want to quickly identify my at-risk customers so I can proactively reach out before they churn
-* As a Support Manager, I want to understand ticket patterns so I can optimize team staffing
-* As a Product Manager, I want to analyze sentiment trends by product feature to prioritize improvements
-* As a Marketing Analyst, I want to segment customers effectively for targeted campaigns
-* As an Executive, I want to track overall customer health metrics at a glance
-
-## 3. Key Features & Functionality
-
-The application will be structured using `st.tabs` for clear navigation between different analysis areas, inspired by the tabs shown in the sample image. A persistent sidebar (`st.sidebar`) will house global filters.
-
-### 3.1 Global Filters (Sidebar)
-
-*   **Date Range:** `st.date_input` with start and end dates to filter data across all relevant tables (e.g., `interaction_date`, `review_date`, `ticket_date`). Default to a sensible range (e.g., last year or all time).
-*   **Customer Value Segment:** `st.multiselect` based on the `value_segment` derived in Query 7 (`High Value`, `Medium Value`, `Low Value`). Populated from `ANALYTICS.CUSTOMER_BASE`.
-*   **Derived Persona:** `st.multiselect` based on `derived_persona` from `ANALYTICS.CUSTOMER_PERSONA_SIGNALS`.
-*   **Churn Risk:** `st.multiselect` based on `churn_risk` from `ANALYTICS.CUSTOMER_PERSONA_SIGNALS`.
-*   **Upsell Opportunity:** `st.multiselect` based on `upsell_opportunity` from `ANALYTICS.CUSTOMER_PERSONA_SIGNALS`.
-*   **Interaction Type:** `st.multiselect` based on `interaction_type` from `ANALYTICS.FACT_CUSTOMER_INTERACTIONS`.
-*   **Review Language:** `st.multiselect` based on `review_language` from `ANALYTICS.FACT_PRODUCT_REVIEWS`.
-
-*(UX Note: Display active filters clearly below the controls in the sidebar, as shown in the sample image.)*
-
-**Filter Behavior:**
-* Filters should apply instantly with visual feedback
-* Add "Clear All" and "Reset to Default" options
-* Show count of filtered results
-* Allow saving filter combinations as presets
-* Add date range presets (Last 7 days, Last 30 days, YTD, etc.)
-
-### 3.2 Overview Dashboard (Default Tab)
-
-*   **KPIs:** Display key metrics prominently at the top using `st.metric`, potentially in `st.columns`. Calculate these based on filtered data.
-    *   **Average Sentiment:** Overall average `sentiment_score` from `ANALYTICS.SENTIMENT_ANALYSIS`. Include delta vs. previous period if feasible.
-    *   **Total Interactions:** Count of records in `ANALYTICS.SENTIMENT_ANALYSIS`. Include delta.
-    *   **Overall Churn Risk:** Percentage of customers classified as 'High' risk in `ANALYTICS.CUSTOMER_PERSONA_SIGNALS`. Include delta or comparison.
-    *   **Average Product Rating:** Average `review_rating` from `ANALYTICS.FACT_PRODUCT_REVIEWS`. Include delta.
-*   **Sentiment Trend:** `st.line_chart` showing average `sentiment_score` from `ANALYTICS.SENTIMENT_ANALYSIS` aggregated by month/week over the selected date range.
-*   **Customer Sentiment Distribution:** `st.bar_chart` showing the count of customers per `overall_sentiment` category (`Positive`, `Neutral`, `Negative`) from `ANALYTICS.CUSTOMER_PERSONA_SIGNALS` (similar to Query 1).
-*   **Churn Risk Breakdown:** `st.bar_chart` showing customer counts by `churn_risk` level (`High`, `Medium`, `Low`) from `ANALYTICS.CUSTOMER_PERSONA_SIGNALS` (similar to Query 2).
-
-### 3.3 Sentiment & Experience Analysis Tab
-
-*   **Sentiment Over Time (by Source):** `st.line_chart` showing average `sentiment_score` trend, allowing users to select/deselect sources (`interaction`, `review`, `ticket`) using `st.multiselect`. Data from `ANALYTICS.SENTIMENT_ANALYSIS`.
-*   **Sentiment Distribution (by Source):** Use `st.columns` to show `st.bar_chart` for sentiment distribution for each source (`interaction`, `review`, `ticket`).
-*   **Sentiment Volatility vs. Trend:** `st.scatter_chart` plotting `sentiment_volatility` against `sentiment_trend` for customers (`ANALYTICS.SENTIMENT_TRENDS`), potentially colored by `overall_sentiment`. Add tooltips showing `customer_id`.
-*   **Interaction Type Sentiment:** `st.bar_chart` showing average `sentiment_score` per `interaction_type` (`ANALYTICS.FACT_CUSTOMER_INTERACTIONS`) (similar to Query 6).
-
-### 3.4 Support Operations Insights Tab
-
-*   **Ticket Volume Trend:** `st.line_chart` showing the number of tickets created over time (`ANALYTICS.FACT_SUPPORT_TICKETS`, aggregated by day/week/month).
-*   **Ticket Priority Breakdown:** `st.bar_chart` or `st.plotly_chart` (e.g., a pie chart) showing the count of tickets by `priority_level` (`ANALYTICS.FACT_SUPPORT_TICKETS`) (similar to Query 3). Include average sentiment per priority level.
-*   **Ticket Category Analysis:** `st.bar_chart` showing ticket count per `ticket_category` (`ANALYTICS.FACT_SUPPORT_TICKETS`), perhaps ordered by volume.
-*   **Tickets per Customer Distribution:** `st.histogram` (using Plotly via `st.plotly_chart`) showing the distribution of `ticket_count` per customer (`ANALYTICS.TICKET_PATTERNS`).
-*   **Extracted Insights Table:** `st.dataframe` displaying recent tickets (`ANALYTICS.FACT_SUPPORT_TICKETS`) with columns for `ticket_description`, `priority_level`, `expected_resolution_timeframe`, `requested_remedy`. Allow sorting.
-
-### 3.5 Product Feedback Analysis Tab
-
-*   **Average Rating Trend:** `st.line_chart` showing average `review_rating` over time (`ANALYTICS.FACT_PRODUCT_REVIEWS`).
-*   **Rating Distribution:** `st.bar_chart` showing the count of reviews for each `review_rating` (1 to 5).
-*   **Sentiment by Language:** `st.bar_chart` showing average `sentiment_score` and review count per `review_language` (`ANALYTICS.FACT_PRODUCT_REVIEWS`) (similar to Query 5).
-*   **Review Samples:** `st.dataframe` showing recent reviews, including `review_text`, `review_text_english`, `review_rating`, `sentiment_score`. Maybe use `st.expander` for longer reviews.
-*   *(Future: Add Product ID filter if data allows)*
-
-### 3.6 Customer Segmentation & Value Tab
-
-*   **Persona Distribution:** `st.bar_chart` showing customer counts per `derived_persona` (`ANALYTICS.CUSTOMER_PERSONA_SIGNALS`).
-*   **Value Segments Analysis:** Use `st.columns` to show key metrics (Avg Sentiment, Avg Tickets, Avg Rating) per `value_segment` using `st.metric` or small bar charts (`ANALYTICS.CUSTOMER_PERSONA_SIGNALS` joined with `ANALYTICS.CUSTOMER_BASE`) (similar to Query 7).
-*   **Churn Risk vs. Upsell Opportunity:** `st.plotly_chart` (e.g., a 2D histogram or density heatmap) showing the distribution of customers based on `churn_risk` and `upsell_opportunity` (`ANALYTICS.CUSTOMER_PERSONA_SIGNALS`). Color intensity could represent customer count. (Similar to Query 4).
-*   **Segment Explorer Table:** `st.data_editor` or `st.dataframe` showing data from `ANALYTICS.CUSTOMER_PERSONA_SIGNALS` allowing sorting and filtering by persona, churn risk, upsell opportunity, etc. Include `customer_summary`.
-
-### 3.7 Individual Customer Deep Dive (Optional/Future Feature)
-
-*   Add a `st.selectbox` (perhaps in the sidebar or a dedicated tab) to search/select a specific `customer_id`.
-*   Display a dedicated view for that customer:
-    *   Key signals (`derived_persona`, `churn_risk`, `upsell_opportunity`, `avg_sentiment`, etc.) using `st.metric`.
-    *   The `customer_summary` from `ANALYTICS.INSIGHT_SUMMARIES`.
-    *   Timeline/Table of their interactions, reviews, and tickets using dataframes.
-
-### 3.8 Data Export & Sharing
-
-* **Export Options:**
-    * CSV export for all data tables
-    * PDF export for dashboard views
-    * Scheduled report generation and email delivery
-* **URL Sharing:**
-    * Generate shareable links with filter states preserved
-    * Optional password protection for sensitive views
-
-### 3.9 User Preferences & Settings
-
-* **Customization Options:**
-    * Default dashboard view
-    * Preferred date range
-    * Chart color schemes
-    * Metric display formats
-* **Notifications:**
-    * Alert settings for key metrics
-    * Email digest frequency
-    * Custom threshold alerts
-
-## 4. Data Sources & Requirements
-
-### 4.1 Data Sources
-
-**Snowflake Database:** `DBT_CORTEX_LLMS`
-**Schema:** `ANALYTICS`
-
-**Core Tables:**
-*   `ANALYTICS.CUSTOMER_PERSONA_SIGNALS`
-*   `ANALYTICS.FACT_CUSTOMER_INTERACTIONS`
-*   `ANALYTICS.FACT_PRODUCT_REVIEWS`
-*   `ANALYTICS.FACT_SUPPORT_TICKETS`
-*   `ANALYTICS.SENTIMENT_ANALYSIS`
-*   `ANALYTICS.SENTIMENT_TRENDS`
-*   `ANALYTICS.TICKET_PATTERNS`
-*   `ANALYTICS.CUSTOMER_BASE`
-*   `ANALYTICS.INSIGHT_SUMMARIES`
-
-### 4.2 Data Requirements
-
-**Critical Requirements:**
-* **Source of Truth:** All data MUST come exclusively from the Snowflake tables defined in `dbt_alternative.sql`. No other data sources are permitted.
-* **No Mock Data:** The application MUST NOT use any mock, sample, or hard-coded data, even during development.
-* **Data Integrity:** All visualizations, metrics, and analysis MUST reflect actual data from Snowflake tables.
-* **Filter Consistency:** All filters MUST operate on the actual columns and values present in the Snowflake tables.
-* **Reference Data:** Any reference data (e.g., category labels, status types) MUST be derived from the existing Snowflake table values.
-
-**Development Guidelines:**
-* Use actual table schemas for type checking and validation
-* Derive all dropdown/selection options from table data
-* Test with real data volumes and distributions
-* Handle all possible NULL values and edge cases in real data
-* Use actual date ranges from the data for temporal filters
-
-**Prohibited Practices:**
-* ❌ Hard-coding any metrics or values
-* ❌ Using mock or sample data, even temporarily
-* ❌ Creating synthetic data for testing
-* ❌ Adding placeholder visualizations
-* ❌ Using assumed or example category values
-
-### 4.3 Data Refresh & Caching
-
-**Real-time metrics updated every 5 minutes**
-**Historical data refreshed daily**
-**Cache invalidation strategy for filtered views**
-**Backup data source handling for system resilience**
-
-## 5. Visualizations & UI/UX Details
-
-*   **Layout:** Primarily use `st.tabs` for main sections and `st.sidebar` for global filters. Use `st.columns` within tabs for side-by-side charts/metrics.
-*   **Charts:** Leverage native Streamlit charts (`st.line_chart`, `st.bar_chart`, `st.scatter_chart`, `st.metric`) where possible for simplicity and performance. Use `st.plotly_chart` for more complex visualizations (histograms, heatmaps, potentially pie charts if deemed appropriate UX-wise). Ensure clear titles and labels on all charts.
-*   **Interactivity:** Filters should dynamically update all relevant charts and tables on the page. Use tooltips on charts to show specific data points. Make data tables (`st.dataframe`, `st.data_editor`) sortable.
-*   **Feedback:** Use `st.spinner("Loading data...")` during Snowflake query execution. Use `st.toast` for brief notifications if needed (e.g., "Filters applied"). Display informative messages like `st.info` if filters result in no data.
-*   **Styling:** Aim for a clean, modern aesthetic similar to the provided sample image. Use whitespace effectively. Ensure good contrast and readability. Leverage Streamlit's default theme options first. Minimal custom CSS via `st.markdown` only if absolutely necessary for specific branding or layout tweaks.
-
-**Accessibility Requirements:**
-* WCAG 2.1 AA compliance
-* Keyboard navigation support
-* Screen reader compatibility
-* Color-blind friendly palettes
-* Responsive design for different screen sizes
-
-**Error States & Empty States:**
-* Clear error messages for query failures
-* Helpful empty state messages with suggested actions
-* Graceful degradation when features are unavailable
-* Retry mechanisms for failed data loads
-
-## 6. Non-Functional Requirements
-
-*   **Performance:** Implement caching (`@st.cache_data`) for Snowflake queries to ensure responsiveness, especially when filters change. Optimize queries for speed. Paginate large tables if necessary.
-*   **Maintainability:** Write clean, modular Python code with comments where necessary. Store Snowflake connection details securely using Streamlit secrets.
-*   **Error Handling:** Gracefully handle potential database connection errors or query failures, displaying informative messages to the user.
-
-**Security Requirements:**
-* Role-based access control (RBAC)
-* Data encryption in transit and at rest
-* Audit logging of user actions
-* Compliance with data privacy regulations
-
-**Performance Targets:**
-* Page load time < 2 seconds (95th percentile)
-* Query response time < 500ms (95th percentile)
-* Support for 100+ concurrent users
-* Maximum memory usage < 2GB
-
-**Monitoring & Logging:**
-* Application health metrics
-* User interaction tracking
-* Error rate monitoring
-* Performance profiling
-* Usage analytics
-
-## 7. Implementation Phases
-
-### Phase 1 (MVP) - Weeks 1-4
-* Basic dashboard with essential KPIs
-* Core filtering functionality
-* Primary visualizations
-* Basic error handling
-
-### Phase 2 - Weeks 5-8
-* Advanced analytics features
-* Export functionality
-* Enhanced filtering
-* Performance optimizations
-
-### Phase 3 - Weeks 9-12
-* User customization features
-* Advanced sharing options
-* Integration with other tools
-* Enhanced security features
-
-## 8. Testing Requirements
-
-**Functional Testing:**
-* Unit tests for data processing
-* Integration tests for Snowflake queries
-* End-to-end testing of user workflows
-* Cross-browser compatibility
-
-**Performance Testing:**
-* Load testing with simulated users
-* Query performance benchmarking
-* Memory leak detection
-* Cache effectiveness validation
-
-**User Testing:**
-* Usability testing with representatives from each user role
-* A/B testing of new features
-* Accessibility testing
-* Beta testing program
-
-## 9. Maintenance & Support
-
-**Regular Maintenance:**
-* Daily monitoring of system health
-* Weekly performance review
-* Monthly security patches
-* Quarterly feature updates
-
-**Support Procedures:**
-* Tier 1: Basic user support
-* Tier 2: Technical issues
-* Tier 3: Data & system problems
-* Documentation & training materials
-
-## 10. Success Criteria & KPIs
-
-**Usage Metrics:**
-* Daily Active Users (DAU)
-* Average session duration
-* Feature adoption rates
-* Export/share activity
-
-**Performance Metrics:**
-* Page load times
-* Query response times
-* Error rates
-* System uptime
-
-**Business Impact:**
-* Reduction in customer churn
-* Improvement in support efficiency
-* Increase in upsell success rate
-* User satisfaction scores
-
-## 11. Future Considerations
-
-*   Add Product ID filtering.
-*   Include Agent ID analysis in the Support section.
-*   Integrate topic modeling results for reviews/tickets.
-*   Add functionality to export filtered data (e.g., to CSV).
-*   Implement the "Individual Customer Deep Dive" feature.
-*   Add user authentication/authorization if needed.
-*   More sophisticated time-based comparisons (WoW, MoM changes).
-
-**Technical Debt Management:**
-* Regular code reviews
-* Performance optimization sprints
-* Documentation updates
-* Architecture evolution planning
-
-**Innovation Roadmap:**
-* AI-powered insights
-* Predictive analytics
-* Mobile app development
-* API development for external integration
-
-## 12. Appendix
-
-**Glossary:**
-* Key terms and definitions
-* Technical acronyms
-* Business metrics explained
-
-**Reference Materials:**
-* Snowflake schema documentation
-* UI/UX guidelines
-* Brand style guide
-* Security policies
-
-## 13. Required Project Structure
-
-The application MUST follow this exact folder structure for maintainability and consistency:
+## 1  Folder & File Layout  🔹Prompt Block 1
+"""
+Create the following repository skeleton:
 
 ```
-.
-├── .streamlit/
-│   └── secrets.toml         # Store Snowflake credentials and other secrets
-│   └── config.toml          # Streamlit theme and configuration options
-├── app.py                   # Main Streamlit application script (entry point)
-├── src/                     # Source code directory for modularity
-│   ├── components/          # Reusable UI components
-│   │   ├── overview_dashboard.py
-│   │   ├── customer_insights.py
-│   │   └── product_analytics.py
-│   ├── queries/            # SQL queries organized by component
-│   │   ├── overview_dashboard/
-│   │   │   ├── kpi_queries.sql
-│   │   │   ├── sentiment_queries.sql
-│   │   │   └── churn_queries.sql
-│   │   ├── customer_insights/
-│   │   │   ├── persona_queries.sql
-│   │   │   └── interaction_queries.sql
-│   │   └── product_analytics/
-│   │       ├── review_queries.sql
-│   │       └── rating_queries.sql
-│   ├── __init__.py
-│   ├── data_loader.py       # Functions to connect to Snowflake and fetch data
-│   ├── charts.py            # Functions to generate Plotly/Streamlit charts
-│   ├── filters.py           # Logic for handling sidebar filters
-│   ├── processing.py        # Data processing/transformation functions
-│   └── utils.py             # General utility functions
-├── assets/                  # Static assets (images, custom CSS if unavoidable)
-├── tests/                   # Unit and integration tests
-├── requirements.txt         # Project dependencies
-└── README.md                # Project overview, setup instructions
+streamlit_app/
+├── app.py                 # entry‑point, assembles st.tabs()
+├── components/            # one component = one dashboard tab
+│   ├── __init__.py       # component registration and imports
+│   ├── overview.py       # 38KB implementation
+│   ├── sentiment_experience.py
+│   ├── support_ops.py
+│   ├── product_feedback.py
+│   └── segmentation.py
+├── sql/                   # ONLY SQL – one sub‑folder per dashboard
+│   ├── overview/
+│   │   ├── kpis.sql
+│   │   ├── sentiment_trend.sql
+│   │   ├── sentiment_dist.sql
+│   │   ├── churn_risk_breakdown.sql
+│   │   ├── risk_trend.sql
+│   │   └── interaction_trend.sql
+│   ├── sentiment_experience/
+│   │   ├── sentiment_over_time.sql
+│   │   ├── sentiment_distribution.sql
+│   │   ├── volatility_vs_trend.sql
+│   │   ├── sentiment_recovery_rate.sql
+│   │   ├── channel_alignment.sql
+│   │   └── sentiment_by_persona.sql
+│   ├── support_ops/
+│   │   ├── ticket_volume_trend.sql
+│   │   ├── priority_breakdown.sql
+│   │   ├── category_analysis.sql
+│   │   ├── tickets_per_customer.sql
+│   │   ├── resolution_rate.sql
+│   │   ├── channel_effectiveness.sql
+│   │   ├── customer_effort.sql
+│   │   └── first_response_time.sql
+│   ├── product_feedback/
+│   │   ├── rating_trend.sql
+│   │   ├── rating_distribution.sql
+│   │   ├── sentiment_by_language.sql
+│   │   └── recent_reviews.sql
+│   └── segmentation/
+│       ├── persona_distribution.sql
+│       ├── value_segment_metrics.sql
+│       ├── churn_vs_upsell.sql
+│       ├── segment_distribution.sql
+│       ├── segment_trend.sql
+│       ├── segment_characteristics.sql
+│       └── segment_migration.sql
+├── utils/
+│   ├── __init__.py       # utility function exports
+│   ├── database.py       # Snowflake connector + query runner
+│   ├── filters.py        # reusable multiselects/date pickers
+│   ├── kpi_cards.py      # helper to render st.metric rows
+│   ├── theme.py          # central colours / fonts
+│   └── debug.py          # debug mode utilities
+├── assets/               # static files (images, etc.)
+├── sample_code/         # example implementations
+└── README.md
 ```
 
-**Structure Requirements:**
-1. All dashboard components MUST be placed in `/src/components/`
-2. All SQL queries MUST be placed in `/src/queries/` organized by component
-3. Each component MUST have its own subdirectory in `/src/queries/` for its queries
-4. No SQL queries should be hardcoded in Python files
-5. All queries must be loaded using the `load_query` function
+Implementation rules:
+* Each *components/*.py file ✨imports only its own SQL✨ from *sql/<dashboard>/*.sql.
+* *app.py* registers global filters (date range, persona, value segment) and passes them as kwargs to each component.
+* Use lazy loading (`st.spinner` + `@st.cache_data(ttl=300)`) around every SQL call.
+* All components must implement debug mode functionality via utils/debug.py.
+"""
 
-**Naming Conventions:**
-- Component files: `lowercase_with_underscores.py`
-- Query files: `lowercase_with_underscores.sql`
-- Component directories: `lowercase_with_underscores`
-- Query directories: `lowercase_with_underscores`
+---
 
-This structure separates concerns (data loading, visualization, component layout), making the application easier to understand, test, and maintain as it grows. The use of components instead of pages allows for better code organization and reusability while maintaining a single-page application experience.
+## 2  Global Libraries & Theme  🔹Prompt Block 2
+"""
+Dependencies (add to requirements.txt):
+- streamlit>=1.33
+- snowflake‑conn‑python
+- pandas, numpy
+- plotly>=5
+- altair>=5
+- seaborn (only for quick data‑checks, not UI)
+- streamlit‑extras (for data‑editor, copy to clipboard, etc.)
+
+Styling:
+- Primary colour #2563EB (indigo‑600), secondary #14B8A6 (teal‑500).
+- Use utils/theme.py to inject base `st.markdown("<style>…</style>", unsafe_allow_html=True)`.
+- All charts default to Streamlit's light theme.
+"""
+
+---
+
+## 3  Global Filter Implementation  🔹Prompt Block 3
+"""
+Implement global filters in utils/filters.py with the following structure:
+
+1. **State Management**
+   ```python
+   def initialize_filters() -> None:
+       """Initialize filter values in session state if they don't exist."""
+       if 'filters' not in st.session_state:
+           default_end = datetime.now()
+           default_start = default_end - timedelta(days=90)
+           personas = get_filter_options()['personas']
+           
+           st.session_state.filters = {
+               'start_date': default_start.strftime('%Y-%m-%d'),
+               'end_date': default_end.strftime('%Y-%m-%d'),
+               'personas': personas
+           }
+           
+           # Initialize component states
+           st.session_state.start_date_filter = default_start
+           st.session_state.end_date_filter = default_end
+           st.session_state.persona_filter = personas
+
+   def sync_filter_state() -> None:
+       """Sync component states with our filter state."""
+       if 'start_date_filter' in st.session_state:
+           st.session_state.filters['start_date'] = st.session_state.start_date_filter.strftime('%Y-%m-%d')
+       if 'end_date_filter' in st.session_state:
+           st.session_state.filters['end_date'] = st.session_state.end_date_filter.strftime('%Y-%m-%d')
+       if 'persona_filter' in st.session_state:
+           st.session_state.filters['personas'] = st.session_state.persona_filter
+   ```
+
+2. **Filter Rendering**
+   ```python
+   def render_global_filters() -> Dict[str, any]:
+       """Render global filters and return selected values."""
+       initialize_filters()
+       
+       with st.sidebar:
+           st.markdown("### Filters")
+           
+           # Date range picker
+           col1, col2 = st.columns(2)
+           with col1:
+               st.date_input(
+                   "Start Date",
+                   value=datetime.strptime(st.session_state.filters['start_date'], '%Y-%m-%d'),
+                   max_value=datetime.strptime(st.session_state.filters['end_date'], '%Y-%m-%d'),
+                   key="start_date_filter"
+               )
+           with col2:
+               st.date_input(
+                   "End Date",
+                   value=datetime.strptime(st.session_state.filters['end_date'], '%Y-%m-%d'),
+                   min_value=st.session_state.start_date_filter,
+                   key="end_date_filter"
+               )
+           
+           # Persona filter
+           personas = get_filter_options()['personas']
+           st.multiselect(
+               "Persona",
+               options=personas,
+               default=st.session_state.filters['personas'],
+               key="persona_filter"
+           )
+       
+       sync_filter_state()
+       return st.session_state.filters
+   ```
+
+3. **Access Methods**
+   ```python
+   def get_date_range() -> Tuple[str, str]:
+       """Get the selected date range from session state."""
+       initialize_filters()
+       sync_filter_state()
+       return st.session_state.filters['start_date'], st.session_state.filters['end_date']
+
+   def get_persona_filter() -> List[str]:
+       """Get the selected personas from session state."""
+       initialize_filters()
+       sync_filter_state()
+       return st.session_state.filters['personas']
+   ```
+
+Implementation rules:
+* Initialize filters in app.py before rendering any components
+* Call sync_filter_state() after any filter changes
+* Pass filter values to components via the filters dictionary
+* All SQL queries must respect the selected date range and personas
+* Filter state must persist across tab switches and page refreshes
+"""
+
+---
+
+## 4  Dashboard Tabs – Design Inventory
+For each tab below include:
+* **KPIs** – rendered via `utils.kpi_cards.render_kpis(df)` at the very top.
+* **Visual Inventory** – recommended chart type, library, SQL file, and Snowflake view/table.
+
+### 4.1  Overview(tab = 'Overview')  🔹Prompt Block 4
+
+#### KPIs
+| KPI | Definition | SQL File |
+|---|---|---|
+| Average Sentiment Score | Mean sentiment_score from SENTIMENT_ANALYSIS | `overview/kpis.sql` |
+| Total Interactions | Count of rows from FACT_CUSTOMER_INTERACTIONS | `overview/kpis.sql` |
+| High Risk Customer % | Percentage of customers with churn_risk='High' | `overview/kpis.sql` |
+| Average Product Rating | Mean review_rating from FACT_PRODUCT_REVIEWS | `overview/kpis.sql` |
+
+#### Visual Inventory
+| # | Visual | Chart | Library | SQL File | Data Source |
+|---|---|---|---|---|---|
+| 1 | Sentiment Trend | Line | Plotly | `overview/sentiment_trend.sql` | Snowflake Views/Tables |
+| 2 | Sentiment Distribution | Bar | Altair | `overview/sentiment_dist.sql` | Snowflake Views/Tables |
+| 3 | Churn Risk Breakdown | Bar | Plotly | `overview/churn_risk_breakdown.sql` | Snowflake Views/Tables |
+
+### 4.2  Sentiment & Experience(tab = 'Sentiment & Experience')
+
+#### KPIs
+| KPI | Definition | SQL File |
+|---|---|---|
+| Sentiment Consistency Score | Standard deviation of sentiment scores | `sentiment_experience/sentiment_over_time.sql` |
+| Cross-channel Sentiment Alignment | Correlation between different channel sentiments | `sentiment_experience/sentiment_over_time.sql` |
+| Customer Experience Score | Weighted average of sentiment, rating, and support metrics | `sentiment_experience/sentiment_over_time.sql` |
+| Sentiment Recovery Rate | % of negative sentiments followed by positive ones | `sentiment_experience/sentiment_over_time.sql` |
+
+#### Visual Inventory
+| # | Visual | Chart | Library | SQL File | Data Source |
+| 1 | Sentiment Over Time by Source | Multi‑line | Plotly | `sentiment_experience/sentiment_over_time.sql` | Snowflake Views/Tables |
+| 2 | Sentiment Distribution by Source | Bar facet | Altair | `sentiment_experience/sentiment_distribution.sql` | Snowflake Views/Tables |
+| 3 | Volatility vs Trend Scatter | Scatter, color=overall_sentiment | Plotly | `sentiment_experience/volatility_vs_trend.sql` | Snowflake Views/Tables |
+
+### 4.3  Support Operations(tab = 'Support Ops')
+
+#### KPIs
+| KPI | Definition | SQL File |
+|---|---|---|
+| First Response Time | Average time to first response | `support_ops/ticket_volume_trend.sql` |
+| Resolution Rate | % of tickets resolved | `support_ops/priority_breakdown.sql` |
+| Customer Effort Score | Derived from ticket complexity and resolution time | `support_ops/category_analysis.sql` |
+| Support Channel Effectiveness | Success rate by channel | `support_ops/tickets_per_customer.sql` |
+
+#### Visual Inventory
+| # | Visual | Chart | Library | SQL File | Data Source |
+| 1 | Ticket Volume Trend | Area | Plotly | `support_ops/ticket_volume_trend.sql` | Snowflake Views/Tables |
+| 2 | Priority Breakdown | Pie + Bar toggle | Plotly | `support_ops/priority_breakdown.sql` | Snowflake Views/Tables |
+| 3 | Category Analysis | Horizontal bar | Altair | `support_ops/category_analysis.sql` | Snowflake Views/Tables |
+| 4 | Tickets per Customer | Histogram | Altair | `support_ops/tickets_per_customer.sql` | Snowflake Views/Tables |
+
+### 4.4  Product Feedback(tab = 'Product Feedback')
+
+#### KPIs
+| KPI | Definition | SQL File |
+|---|---|---|
+| Review Response Rate | Ratio of reviews with responses | `product_feedback/rating_trend.sql` |
+| Average Review Length | Average character count of reviews | `product_feedback/rating_distribution.sql` |
+| Multi-language Review % | Percentage of non-English reviews | `product_feedback/sentiment_by_language.sql` |
+| Review Sentiment Volatility | Standard deviation of review sentiments | `product_feedback/recent_reviews.sql` |
+
+#### Visual Inventory
+| # | Visual | Chart | Library | SQL File | Data Source |
+| 1 | Rating Trend | Line | Plotly | `product_feedback/rating_trend.sql` | Snowflake Views/Tables |
+| 2 | Rating Distribution | Bar | Altair | `product_feedback/rating_distribution.sql` | Snowflake Views/Tables |
+| 3 | Sentiment by Language | Heatmap | Plotly | `product_feedback/sentiment_by_language.sql` | Snowflake Views/Tables |
+| 4 | Recent Reviews Table | st.dataframe | Streamlit | `product_feedback/recent_reviews.sql` | Snowflake Views/Tables |
+
+### 4.5  Segmentation(tab = 'Segmentation & Value')
+
+_Note: This component presents detailed charts within expanders. While the KPIs below are defined for analytical consistency, they are not rendered as standard top-level KPI cards in the current implementation. The data for these KPIs can be derived from the specified SQL queries and corresponding visualizations._
+
+#### KPIs
+| KPI | Definition | SQL File |
+|---|---|---|
+| Segment Migration Rate | % of customers changing segments | `segmentation/segment_migration.sql` |
+| Segment Health Score | Weighted average of segment metrics | `segmentation/value_segment_metrics.sql` |
+| High-value Customer % | % of customers with lifetime_value > 1000 | `segmentation/value_segment_metrics.sql` |
+| Segment Engagement Index | Weighted average of interaction frequency | `segmentation/churn_vs_upsell.sql` |
+
+#### Visual Inventory
+| # | Visual | Chart | Library | SQL File | Data Source | Notes |
+|---|---|---|---|---|---|---|
+| 1 | Persona Distribution | Bar | Plotly | `segmentation/persona_distribution.sql` | Snowflake Views/Tables | Main section. (Was Altair) |
+| 2 | Value Segment Radar | Radar (plotly polar) | Plotly | `segmentation/value_segment_metrics.sql` | Snowflake Views/Tables | Main section |
+| 3 | Churn vs Upsell Potential | Density Heatmap | Plotly | `segmentation/churn_vs_upsell.sql` | Snowflake Views/Tables | Main section. (Title was "Churn vs Upsell Density", chart type 2D Histogram) |
+| 4 | Segment Explorer Table | `st.dataframe` | Streamlit | `segmentation/persona_distribution.sql` | Snowflake Views/Tables | Main section. (Was `st.data_editor`) |
+| 5 | Customer Segment Distribution | Pie | Plotly | `segmentation/segment_distribution.sql` | Snowflake Views/Tables | In "Additional Segment Visualizations" expander |
+| 6 | Segment Characteristics | Bar (grouped) | Plotly | `segmentation/segment_characteristics.sql` | Snowflake Views/Tables | In "Additional Segment Visualizations" expander |
+| 7 | Segment Migration Analysis | Heatmap | Plotly | `segmentation/segment_migration.sql` | Snowflake Views/Tables | In "Additional Segment Visualizations" expander |
+| - | Segment Trend Data | (Data loaded) | - | `segmentation/segment_trend.sql` | Snowflake Views/Tables | Data loaded for download; not directly visualized in "Additional Segment Visualizations" expander |
+
+---
+
+## 5  SQL Conventions  🔹Prompt Block 5
+"""
+* Use Jinja parameters `:start_date`, `:end_date`, `:selected_personas`, etc., exactly as shown in STREAMLIT_QUERIES.md.
+* Never `SELECT *`. Explicitly list columns for Snowflake pruning.
+* Wrap each KPI query in a CTE block (`WITH kpi AS (…) SELECT …`).
+* Store every query in the *sql/* tree; never embed SQL in Python.
+* **Data Source Mandate:** ALL data displayed in the application MUST originate directly from Snowflake queries. Never generate synthetic data or use hardcoded values within the application code.
+* **Filter Implementation:** Queries *may* be designed to be filterable by parameters such as `:start_date`, `:end_date`, and `:selected_personas` (typically a comma-separated string for multiple persona selection). If a query is designed to be filterable, these parameter names should be used consistently. However, not all queries are required to be filterable; this depends on the specific data and analytical purpose of the query. For instance, queries based on highly aggregated summary tables (like `CUSTOMER_PERSONA_SIGNALS`) might not support direct date or detailed persona filtering.
+  When implementing filterable queries, a common pattern for handling optional persona filtering is:
+  ```sql
+  -- Example for a query that supports filtering:
+  -- WHERE interaction_date BETWEEN :start_date AND :end_date
+  -- AND (:selected_personas = '' OR persona_column IN (SELECT value FROM TABLE(SPLIT_TO_TABLE(:selected_personas, ','))))
+  ```
+* **Case Sensitivity Handling:**
+  - Snowflake returns column names in uppercase by default
+  - Always use uppercase column names in SQL queries
+  - When accessing DataFrame columns in Python code, use uppercase to match Snowflake's output
+  - Example: Use `df['AVG_RATING']` instead of `df['avg_rating']`
+  - Document this convention in component docstrings
+  - Consider adding a helper function in utils/database.py to standardize column name handling
+"""
+
+---
+
+## 6  Performance & Caching Guidelines  🔹Prompt Block 6
+"""
+- Wrap expensive queries with `@st.cache_data(ttl=300, show_spinner=False)`.
+- Use Snowflake `QUERY_TAG='streamlit_app'` for monitoring.
+- Chunk large result sets: prefer `LIMIT 5 000` + pagination for tables.
+- Run KPI queries first and in parallel via `asyncio.gather()`.
+- Cache filter options with `@st.cache_data(ttl=300)` to avoid repeated database calls.
+"""
+
+---
+
+## 7  Accessibility & UX Details  🔹Prompt Block 7
+"""
+- Every Plotly chart: enable unified hover label + download PNG icon.
+- Provide colour‑blind friendly palette (automatic with Plotly template `plotly_white`).
+- Ensure all KPIs have `help` tool‑tips that match definitions.
+- Use `st.toast()` for success/error notifications on user actions.
+- Filters should be clearly visible in the sidebar with descriptive labels.
+- Filter changes should trigger immediate updates across all dashboard components.
+- Implement responsive layouts using `st.columns()` for better mobile support.
+- Use consistent spacing and padding across all components.
+- Provide clear loading states with `st.spinner()` for all data operations.
+"""
+
+---
+
+## 8  Debug Mode Implementation  🔹Prompt Block 8
+"""
+The debug mode functionality is implemented in `utils/debug.py` and must be used by all components:
+
+1. **Debug Utilities**
+   - Import debug utilities: `from utils.debug import display_debug_info, setup_debug_mode`
+   - Use `setup_debug_mode()` in app.py to initialize debug state
+   - Implement debug display using `display_debug_info()` helper
+
+2. **Component Implementation**
+   ```python
+   def render_dashboard(debug_mode: bool = False):
+       # Load data first
+       with st.spinner("Loading dashboard data..."):
+           data = load_data()
+       
+       # Display debug info if enabled
+       if debug_mode:
+           display_debug_info(
+               sql_file="path/to/query.sql",
+               params={"start_date": start_date, "end_date": end_date},
+               results=data,
+               query_name="Dashboard Query"
+           )
+       
+       # Render main dashboard
+       render_visualizations(data)
+   ```
+
+3. **Debug Information Display**
+   - SQL query text and parameters
+   - Raw query results
+   - Formatted DataFrame preview
+   - Current filter values
+   - Performance metrics (query time, data size)
+
+4. **Global Debug Toggle**
+   - Toggle in sidebar: `st.sidebar.toggle("Debug Mode")`
+   - State stored in `st.session_state.debug_mode`
+   - Persists across tab switches and page refreshes
+
+5. **Performance Optimization**
+   - Load data before displaying debug info
+   - Cache expensive operations
+   - Limit debug output for large datasets
+   - Use consistent formatting across components
+"""
+
+---
+
+## 9  Future Enhancements
+* Customer Deep‑Dive modal per ID (pop‑up rather than extra tab).
+* PDF/CSV export via `st.download_button`.
+* Scheduled email jobs using Snowflake Tasks + Streamlit Cloud scheduled jobs.
+* Additional filter types (e.g., value segments, product categories).
+* Filter presets for common date ranges (e.g., "Last 30 days", "This quarter").
+* Real-time data updates using Snowflake's change tracking.
+* Custom theme support with dark/light mode toggle.
+* Advanced filtering with saved filter presets.
+* Export functionality for all visualizations and data tables.
+
+---
+
+### End of PRD

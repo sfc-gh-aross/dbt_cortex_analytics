@@ -1,0 +1,144 @@
+:root {
+  /* Light theme variables */
+  --light-bg-primary: #ffffff;
+  --light-bg-secondary: #f3f4f6;
+  --light-text-primary: #111827;
+  --light-text-secondary: #374151;
+  --light-border: #e5e7eb;
+  --light-hover: #f9fafb;
+  
+  /* Dark theme variables */
+  --dark-bg-primary: #1f2937;
+  --dark-bg-secondary: #374151;
+  --dark-text-primary: #f9fafb;
+  --dark-text-secondary: #d1d5db;
+  --dark-border: #4b5563;
+  --dark-hover: #4b5563;
+  
+  /* Common variables */
+  --primary-color: #29B5E8;
+  --primary-hover: #1a8bb8;
+  --primary-border: #1a8bb8;
+}
+
+/* Base styles */
+.stApp {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.stMarkdown {
+  color: var(--text-primary);
+}
+
+.stDataFrame {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+/* Input styling */
+.stTextInput>div>div>input,
+.stNumberInput>div>div>input,
+.stSelectbox>div>div>select {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  border-color: var(--border);
+}
+
+/* Sidebar styling */
+section[data-testid="stSidebar"] {
+  background-color: transparent !important;
+}
+
+section[data-testid="stSidebar"] .stMarkdown {
+  color: var(--text-primary) !important;
+}
+
+section[data-testid="stSidebar"] .stButton>button {
+  background-color: var(--bg-primary) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border) !important;
+}
+
+section[data-testid="stSidebar"] .stButton>button:hover {
+  background-color: var(--hover) !important;
+}
+
+/* Button styling */
+.stButton>button {
+  background-color: var(--primary-color) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--primary-border) !important;
+}
+
+.stButton>button:hover {
+  background-color: var(--primary-hover) !important;
+}
+
+/* Tag styling */
+[data-baseweb="tag"] {
+  background-color: var(--primary-color) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--primary-border) !important;
+}
+
+[data-baseweb="tag"]:hover {
+  background-color: var(--primary-hover) !important;
+}
+
+/* Tab styling */
+.stTabs [data-baseweb="tab-list"] {
+  background-color: var(--bg-primary) !important;
+}
+
+.stTabs [data-baseweb="tab"] {
+  color: var(--text-primary) !important;
+}
+
+.stTabs [aria-selected="true"] {
+  background-color: var(--bg-secondary) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Alert and expander styling */
+.stAlert {
+  background-color: var(--bg-primary) !important;
+  color: var(--text-primary) !important;
+}
+
+.stExpander {
+  background-color: var(--bg-primary) !important;
+  border-color: var(--border) !important;
+}
+
+/* Checkbox and radio styling */
+.stCheckbox>div>div>label,
+.stRadio>div>div>label,
+.stToggle>div>div>label {
+  color: var(--text-primary) !important;
+}
+
+/* Header styling */
+header[data-testid="stHeader"] {
+  background-color: var(--bg-secondary) !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+
+/* Theme-specific overrides */
+[data-theme="light"] {
+  --bg-primary: var(--light-bg-primary);
+  --bg-secondary: var(--light-bg-secondary);
+  --text-primary: var(--light-text-primary);
+  --text-secondary: var(--light-text-secondary);
+  --border: var(--light-border);
+  --hover: var(--light-hover);
+}
+
+[data-theme="dark"] {
+  --bg-primary: var(--dark-bg-primary);
+  --bg-secondary: var(--dark-bg-secondary);
+  --text-primary: var(--dark-text-primary);
+  --text-secondary: var(--dark-text-secondary);
+  --border: var(--dark-border);
+  --hover: var(--dark-hover);
+} 

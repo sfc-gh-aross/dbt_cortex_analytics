@@ -173,7 +173,13 @@ SELECT
                     'System is down and customers cannot place orders',
                     'Security breach detected',
                     'Payment processing completely stopped',
-                    'All users locked out of the system'
+                    'All users locked out of the system',
+                    'Cannot access my account',
+                    'Order stuck in processing',
+                    'Payment failed',
+                    'Website not loading',
+                    'Critical feature not working',
+                    'Data loss or corruption'
                 ]
             },
             {
@@ -183,7 +189,13 @@ SELECT
                     'Customer cannot complete checkout',
                     'Order status stuck in processing',
                     'Unable to access account',
-                    'Payment failed for multiple customers'
+                    'Payment failed for multiple customers',
+                    'Product not working as expected',
+                    'Account access issues',
+                    'Billing problems',
+                    'Service disruption',
+                    'Performance issues',
+                    'Security concerns'
                 ]
             },
             {
@@ -193,7 +205,13 @@ SELECT
                     'Product image not displaying correctly',
                     'Slow response times in certain areas',
                     'Minor UI issues',
-                    'Account settings not saving'
+                    'Account settings not saving',
+                    'Feature not working as expected',
+                    'Minor display issues',
+                    'Non-critical performance problems',
+                    'General functionality questions',
+                    'Minor account issues',
+                    'Non-urgent technical problems'
                 ]
             },
             {
@@ -203,12 +221,18 @@ SELECT
                     'General product questions',
                     'Feature request',
                     'UI enhancement suggestion',
-                    'Documentation clarification'
+                    'Documentation clarification',
+                    'How-to questions',
+                    'Product information request',
+                    'General feedback',
+                    'Non-technical questions',
+                    'Account information request',
+                    'General support questions'
                 ]
             }
         ],
         {
-            'task_description': 'Classify the urgency level of this support ticket based on its description'
+            'task_description': 'Classify the urgency level of this support ticket based on its description. When in doubt, classify as Critical or High priority if the issue affects core functionality or user access.'
         }
     )['label'] AS priority_level,
     -- Add customer expectations
