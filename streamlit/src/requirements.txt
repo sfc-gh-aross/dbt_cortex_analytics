@@ -17,3 +17,6 @@ pywaffle
 bar_chart_race
 streamlit-lottie
 pydeck
+matplotlib
+plotly
+scipy

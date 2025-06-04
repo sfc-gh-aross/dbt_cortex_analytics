@@ -10,43 +10,115 @@ from snowflake.connector import DictCursor
 import streamlit as st
 import pandas as pd
 
+# Attempt to import Snowpark Session for type checking in SiS environment detection
+try:
+    from snowflake.snowpark.session import Session as SnowparkSession
+    from snowflake.snowpark.context import get_active_session as get_snowpark_active_session
+except ImportError:
+    SnowparkSession = None # Snowpark not installed, or not in the Python path
+    get_snowpark_active_session = None
+
+print(f"DEBUG: SnowparkSession is None after import: {SnowparkSession is None}") # DEBUG PRINT
+
 class SnowflakeConnection:
-    """Manages Snowflake connection and query execution."""
+    """Manages Snowflake connection and query execution, adapting to SiS or local."""
     
     def __init__(self):
-        """Initialize connection parameters from Streamlit secrets."""
-        self.conn_params = {
-            'user': st.secrets["snowflake"]["user"],
-            'password': st.secrets["snowflake"]["password"],
-            'account': st.secrets["snowflake"]["account"],
-            'warehouse': st.secrets["snowflake"]["warehouse"],
-            'database': st.secrets["snowflake"]["database"],
-            'schema': st.secrets["snowflake"]["schema"]
-        }
-        self._validate_credentials()
-        self._conn = None
-        
-        # Test connection
+        """Initialize connection, detecting if running in Streamlit-in-Snowflake or locally."""
+        self._snowpark_session = None
+        self._local_raw_connection = None
+        self._is_sis = False # Assume local unless proven SiS
+
         try:
-            conn = self.get_connection()
-            cur = conn.cursor(DictCursor)
-            cur.execute("SELECT CURRENT_WAREHOUSE(), CURRENT_DATABASE(), CURRENT_SCHEMA()")
-            result = cur.fetchone()
-            #st.write("Connected to Snowflake:")
-            #st.write(f"- Warehouse: {result['CURRENT_WAREHOUSE()']}")
-           # st.write(f"- Database: {result['CURRENT_DATABASE()']}")
-           # st.write(f"- Schema: {result['CURRENT_SCHEMA()']}")
-            cur.close()
+            conn_obj = st.connection("snowflake")
+            print(f"DEBUG: conn_obj type: {type(conn_obj)}")
+
+            connection_successful = False # Flag to track if any method succeeds
+
+            # Pattern 1: conn_obj.session is a callable method (e.g., .session() from Snowflake docs)
+            if not connection_successful and SnowparkSession and hasattr(conn_obj, 'session') and callable(getattr(conn_obj, 'session')):
+                print("DEBUG: Attempting Pattern 1: conn_obj.session() as a method.")
+                try:
+                    potential_session = conn_obj.session() # Call it as a method
+                    print(f"DEBUG: conn_obj.session() returned type: {type(potential_session)}")
+                    if potential_session is not None and isinstance(potential_session, SnowparkSession):
+                        self._snowpark_session = potential_session
+                        self._is_sis = True
+                        self._snowpark_session.sql("SELECT 1 AS test_col").collect() # Test SiS connection
+                        connection_successful = True
+                        print("DEBUG: Success via Pattern 1: conn_obj.session()")
+                    else:
+                        print("DEBUG: Pattern 1: conn_obj.session() did not return a valid SnowparkSession instance or was None.")
+                except Exception as call_e:
+                    print(f"DEBUG: Pattern 1: Error calling conn_obj.session(): {str(call_e)}")
+
+            # Pattern 2: conn_obj.session is an attribute that is a SnowparkSession
+            if not connection_successful and SnowparkSession and hasattr(conn_obj, 'session') and \
+               not callable(getattr(conn_obj, 'session')) and \
+               getattr(conn_obj, 'session') is not None and isinstance(getattr(conn_obj, 'session'), SnowparkSession):
+                print("DEBUG: Attempting Pattern 2: conn_obj.session as an attribute.")
+                self._snowpark_session = getattr(conn_obj, 'session')
+                self._is_sis = True
+                self._snowpark_session.sql("SELECT 1 AS test_col").collect() # Test SiS connection
+                connection_successful = True
+                print("DEBUG: Success via Pattern 2: conn_obj.session attribute.")
+
+            # Pattern 3: conn_obj itself is a SnowparkSession
+            if not connection_successful and SnowparkSession and isinstance(conn_obj, SnowparkSession):
+                print("DEBUG: Attempting Pattern 3: conn_obj directly as SnowparkSession.")
+                self._snowpark_session = conn_obj
+                self._is_sis = True
+                self._snowpark_session.sql("SELECT 1 AS test_col").collect() # Test SiS connection
+                connection_successful = True
+                print("DEBUG: Success via Pattern 3: conn_obj directly.")
+
+            # Pattern 4: Local raw Snowflake connection (SnowflakeConnection)
+            if not connection_successful and hasattr(conn_obj, '_instance') and conn_obj._instance is not None and \
+                 isinstance(conn_obj._instance, snowflake.connector.SnowflakeConnection):
+                print("DEBUG: Attempting Pattern 4: local raw connection via conn_obj._instance.")
+                self._local_raw_connection = conn_obj._instance
+                # self._is_sis remains False (default for local)
+                with self._local_raw_connection.cursor() as cur_test:
+                    cur_test.execute("SELECT 1 AS test_col")
+                connection_successful = True # A connection (local) was made
+                print("DEBUG: Success via Pattern 4: local raw connection.")
+            
+            # Check if any connection method succeeded
+            if not self._snowpark_session and not self._local_raw_connection:
+                print(f"DEBUG: All connection patterns failed. conn_obj attributes: {dir(conn_obj)}") # DEBUG PRINT
+                raise Exception("st.connection('snowflake') returned an unrecognized object configuration or failed all known patterns.")
+
+        except AttributeError as e:
+            if "module 'streamlit' has no attribute 'connection'" in str(e):
+                # ----- Attempt 2: Fallback for SiS with older Streamlit (st.connection missing) -----
+                if SnowparkSession and get_snowpark_active_session:
+                    try:
+                        # st.info("Attempting SiS fallback: get_active_session()") # Optional debug info
+                        self._snowpark_session = get_snowpark_active_session()
+                        if self._snowpark_session and isinstance(self._snowpark_session, SnowparkSession):
+                            self._is_sis = True
+                            self._snowpark_session.sql("SELECT 1 AS test_col").collect() # Test SiS connection
+                        else:
+                            self._snowpark_session = None # Ensure it's reset if not a valid session
+                            raise Exception("SiS fallback: get_active_session() did not return a valid Snowpark session.")
+                    except Exception as fallback_e:
+                        self._snowpark_session = None # Ensure reset on error
+                        raise Exception(f"SiS fallback using get_active_session() failed: {fallback_e}")
+                else:
+                    # st.connection missing and no Snowpark fallback possible (e.g., local old Streamlit without Snowpark)
+                    raise Exception("st.connection is unavailable, and Snowpark context (get_active_session) is also not available. Update Streamlit or check environment.")
+            else:
+                # Different AttributeError, re-raise it as it's unexpected
+                raise
         except Exception as e:
-            st.error(f"Failed to connect to Snowflake: {str(e)}")
-            raise
-    
-    def _validate_credentials(self) -> None:
-        """Validate that all required credentials are present."""
-        missing = [k for k, v in self.conn_params.items() if not v]
-        if missing:
-            raise ValueError(f"Missing required Snowflake credentials: {', '.join(missing)}")
-    
+            # Catch any other unexpected errors during connection setup
+            raise Exception(f"An unexpected error occurred during Snowflake connection setup: {e}")
+
+        # Final validation: ensure one connection method succeeded
+        if not self._snowpark_session and not self._local_raw_connection:
+            # This state should ideally be caught by specific errors above, but as a safeguard:
+            raise Exception("Failed to establish Snowflake connection through any available method. Please check logs for specific errors.")
+
     def _read_sql_file(self, sql_path: str) -> str:
         """Read SQL query from a file.
         
@@ -57,103 +129,100 @@ class SnowflakeConnection:
         Returns:
             str: SQL query string
         """
-        # Get the absolute path to the directory containing this file (utils/)
         utils_dir = os.path.dirname(os.path.abspath(__file__))
-        # Get the project root directory (streamlit/) by going up one level
         project_root = os.path.dirname(utils_dir)
-        # Construct the absolute path to the SQL file
-        # sql_path is relative to the 'sql' directory, e.g., "kpis/my_file.sql"
         full_path = os.path.join(project_root, "sql", sql_path)
-        
         try:
             with open(full_path, 'r') as f:
                 return f.read()
         except FileNotFoundError:
-            st.error(f"SQL file not found at path: {full_path}") # Provide more context in error
-            raise # Re-raise the error to be caught by the calling function
+            st.error(f"SQL file not found at path: {full_path}")
+            raise
     
-    @st.cache_resource(ttl=3600)
-    def get_connection(_self) -> snowflake.connector.SnowflakeConnection:
-        """Get a cached Snowflake connection.
-        
-        Returns:
-            snowflake.connector.SnowflakeConnection: Active connection to Snowflake
-        """
-        if not _self._conn or _self._conn.is_closed():
-            _self._conn = snowflake.connector.connect(**_self.conn_params)
-        return _self._conn
-    
+    def _substitute_params(self, query: str, params: Optional[Dict[str, Any]] = None) -> str:
+        """Substitute named parameters in the query string. WARNING: SQL INJECTION RISK."""
+        if params:
+            for key, value in params.items():
+                if isinstance(value, list):
+                    if not value:
+                        formatted_value = "''"
+                    else:
+                        # This specific list formatting might need review based on SQL usage (e.g., for IN clauses)
+                        # Original code created a single string like "'val1,val2,val3'".
+                        # For an IN clause, one might need "('val1', 'val2')"
+                        # Replicating previous logic, ensuring values are strings and single quotes within them are escaped.
+                        escaped_list_items = [str(v).replace("'", "''") for v in value]
+                        formatted_value = f"'{','.join(escaped_list_items)}'"
+                elif isinstance(value, str):
+                    escaped_value = value.replace("'", "''") # Escape single quotes
+                    formatted_value = f"'{escaped_value}'"
+                elif isinstance(value, (int, float)):
+                    formatted_value = str(value)
+                elif value is None:
+                    formatted_value = "NULL"
+                else:
+                    # Fallback: convert to string and escape single quotes
+                    escaped_value = str(value).replace("'", "''")
+                    formatted_value = f"'{escaped_value}'"
+                
+                query = query.replace(f":{key}", formatted_value)
+        return query
+
     @st.cache_data(ttl=300)
     def execute_query(
-        _self,
-        query: str,
+        _self, # _self refers to the instance of SnowflakeConnection
+        query_or_path: str,
         params: Optional[Dict[str, Any]] = None
     ) -> List[Dict[str, Any]]:
-        """Execute a parameterized query and return results.
+        """Execute a query and return results as a list of dictionaries.
         
         Args:
-            query: SQL query string or path to SQL file relative to src/sql/
+            query_or_path: SQL query string or path to SQL file relative to src/sql/
             params: Dictionary of parameter values
             
         Returns:
             List of dictionaries containing query results
             
         Raises:
-            snowflake.connector.errors.Error: If query execution fails
+            Exception: If query execution fails
         """
+        
+        final_query: str
+        if query_or_path.endswith('.sql'):
+            final_query = _self._read_sql_file(query_or_path)
+        else:
+            final_query = query_or_path
+        
+        # Apply the custom parameter substitution.
+        # WARNING: This is a SQL injection risk and should be replaced with proper parameterized queries.
+        final_query = _self._substitute_params(final_query, params)
+            
         try:
-            # If query is a file path, read the SQL from file
-            if query.endswith('.sql'):
-                query = _self._read_sql_file(query)
-            
-            conn = _self.get_connection()
-            cur = conn.cursor(DictCursor)
-            
-            # Set query tag for monitoring
-            cur.execute("ALTER SESSION SET QUERY_TAG='streamlit_app'")
-            
-            # Execute the query with parameters
-            if params:
-                # Convert parameters to the format expected by Snowflake
-                snowflake_params = {}
-                for key, value in params.items():
-                    if isinstance(value, list):
-                        # Convert list to comma-separated string
-                        if not value:
-                            snowflake_params[key] = "''"
-                        else:
-                            # Join list elements with commas and quote the entire string
-                            snowflake_params[key] = f"'{','.join(str(v) for v in value)}'"
-                    elif isinstance(value, str):
-                        if not value:
-                            snowflake_params[key] = "''"
-                        else:
-                            snowflake_params[key] = f"'{value}'"
-                    elif isinstance(value, (int, float)):
-                        snowflake_params[key] = str(value)
-                    else:
-                        snowflake_params[key] = str(value)
-                
-                # Replace named parameters in the query
-                for key, value in snowflake_params.items():
-                    query = query.replace(f":{key}", value)
-                
-                cur.execute(query)
-            else:
-                cur.execute(query)
-            
-            results = cur.fetchall()
-            cur.close()
-            return results
+            if _self._is_sis:
+                if not _self._snowpark_session:
+                    raise Exception("Streamlit-in-Snowflake mode, but Snowpark session is not available.")
+                # st.write(f"[SiS] Executing: {final_query}")
+                snowpark_rows = _self._snowpark_session.sql(final_query).collect()
+                return [row.as_dict() for row in snowpark_rows]
+            else: # Local execution
+                if not _self._local_raw_connection:
+                    raise Exception("Local mode, but raw Snowflake connection is not available.")
+                # st.write(f"[Local] Executing: {final_query}")
+                with _self._local_raw_connection.cursor(DictCursor) as cur: # Use positional DictCursor
+                    # Query tag is good practice
+                    try: cur.execute("ALTER SESSION SET QUERY_TAG = 'streamlit_app_local'")
+                    except Exception: pass # Best effort
                     
-        except snowflake.connector.errors.Error as e:
-            st.error(f"Snowflake query error: {str(e)}")
-            raise
+                    cur.execute(final_query) # Params are already substituted into final_query
+                    results = cur.fetchall()
+                    return results
+                    
         except Exception as e:
-            st.error(f"Error executing query: {str(e)}")
+            st.error(f"Error executing query ({'SiS' if _self._is_sis else 'Local'}): {str(e)}\\nQuery (potentially with substituted params): {final_query}")
             raise
 
-# Create a singleton instance
+# Global instance for other functions to use, initialized when module is imported.
+# This was the original pattern. Consider if `run_query` should take an instance.
 snowflake_conn = SnowflakeConnection()
 
 def run_query(query: str, params: Optional[Dict[str, Any]] = None) -> pd.DataFrame:
@@ -167,17 +236,15 @@ def run_query(query: str, params: Optional[Dict[str, Any]] = None) -> pd.DataFra
     Returns:
         pandas DataFrame with query results
     """
-    conn = SnowflakeConnection()
-    
-    # If query is a file path, read the SQL from file
-    if query.endswith('.sql'):
-        query = conn._read_sql_file(query)
-    
-   #st.write("Executing query with parameters:", params)
-    results = conn.execute_query(query, params)
+    # The original run_query created a new SnowflakeConnection() instance each time.
+    # This is inefficient. Using the global instance is better.
+    # If snowflake_conn failed to initialize, this will use a broken object.
+    # Initialization errors in snowflake_conn should be fatal or clearly indicated.
+
+    #st.write(f"run_query called with: {query}, params: {params}")
+    results = snowflake_conn.execute_query(query, params)
     df = pd.DataFrame(results)
     #st.write("Query results DataFrame info:")
-    #st.write(df.info())
-    #st.write("Query results columns:")
-    #st.write(df.columns)
+    #st.write(df.info() if not df.empty else "DataFrame is empty.")
+    #st.write("Query results columns:", df.columns.tolist())
     return df 

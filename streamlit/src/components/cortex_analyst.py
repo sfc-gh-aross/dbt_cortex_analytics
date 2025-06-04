@@ -26,6 +26,11 @@ API_TIMEOUT_SECONDS = 120
 # For _snowflake.send_snow_api_request, path is relative to account, not full URL
 SNOWFLAKE_CORTEX_ANALYST_API_PATH = "/api/v2/cortex/analyst/message"
 
+# Import run_query from utils.database
+from utils.database import run_query
+# Remove old imports if they were solely for the previous execute_query method for SQL results
+# from utils.utils import get_snowflake_connection, execute_query 
+
 def render_cortex_analyst_tab(filters: dict, debug_mode: bool = False):
     """Render the 'Ask Your Data' tab (Cortex Analyst interface) using REST API"""
     
@@ -548,8 +553,9 @@ def display_cortex_response(api_response_json, execution_time, request_id):
 
     if generated_sql:
         st.subheader("Query Results:")
-        connection = get_snowflake_connection()
-        df = execute_query(connection, generated_sql)
+        # connection = get_snowflake_connection() # Replaced
+        # df = execute_query(connection, generated_sql) # Replaced
+        df = run_query(generated_sql) # Use run_query from utils.database
         
         if df.empty: # execute_query from utils.utils handles its own st.error and returns empty df on error or no data.
             st.info("Query returned no data, or an error occurred during its execution (check for error messages above).")

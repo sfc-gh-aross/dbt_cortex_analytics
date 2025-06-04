@@ -1,82 +1,27 @@
 """
-Utilities for authenticating to Snowflake REST APIs using Key-Pair JWT.
+Utilities for authenticating to Snowflake REST APIs.
 """
 import streamlit as st
-import jwt
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.backends import default_backend
-import datetime
-import time
-import snowflake.connector # Added for username/password auth
+# import jwt # Removed jwt import
+from cryptography.hazmat.primitives import serialization # This might be unused now
+from cryptography.hazmat.backends import default_backend # This might be unused now
+import datetime # This might be unused now
+import time # This might be unused now
+import snowflake.connector
 
-def _get_qualified_names(account_locator_raw: str, user_raw: str, public_key_fp_raw: str):
-    """
-    Formats account and user names for Snowflake JWT, and constructs the issuer.
-    Snowflake typically expects account and user names in uppercase for JWT.
-    The public key fingerprint is appended to the qualified username for the issuer.
-    """
-    # Account locator might be 'xy12345' or 'orgname-acctname'.
-    # For JWT, it's generally uppercased, and hyphens might be replaced by underscores
-    # depending on the original account name format, but often direct uppercase works.
-    # Let's stick to direct uppercase as per common practice for JWT account locators.
-    account_jwt = account_locator_raw.upper()
-    user_jwt = user_raw.upper()
-    
-    qualified_username = f"{account_jwt}.{user_jwt}"
-    # The issuer includes the public key fingerprint.
-    issuer = f"{qualified_username}.{public_key_fp_raw}"
-    return qualified_username, issuer
+# Removed _get_qualified_names function as it was JWT specific
+# def _get_qualified_names(account_locator_raw: str, user_raw: str, public_key_fp_raw: str):
+#     ...
 
 def get_snowflake_jwt() -> str | None:
     """
-    Generates a JWT for Snowflake Key-Pair authentication or obtains a session token
-    using username/password.
-    Key-pair auth reads credentials from st.secrets.snowflake_api_auth.
+    Obtains a session token using username/password authentication.
     Username/password auth reads credentials from st.secrets.snowflake.
-    Returns the JWT string or None if an error occurs.
+    Returns the session token string or None if an error occurs.
     """
-    # Attempt Key-Pair authentication first
-    api_creds = st.secrets.get("snowflake_api_auth")
-    if api_creds and api_creds.get("private_key") and api_creds.get("public_key_fingerprint"):
-        account_locator = api_creds.get("account_locator")
-        user = api_creds.get("user")
-        private_key_pem_str = api_creds.get("private_key")
-        public_key_fp = api_creds.get("public_key_fingerprint")
-
-        if not all([account_locator, user, private_key_pem_str, public_key_fp]):
-            # This path should ideally not be hit if private_key and public_key_fp are present
-            st.error(
-                "Authentication Error (Key-Pair): Missing one or more required fields "
-                "(account_locator, user) in snowflake_api_auth secrets for key-pair auth."
-            )
-            # Fall through to allow username/password attempt if desired, or return None here
-            # For now, let's make it explicit: if key-pair essentials are there, try it fully.
-        else:
-            try:
-                private_key_bytes = private_key_pem_str.encode('utf-8')
-                private_key = serialization.load_pem_private_key(
-                    private_key_bytes,
-                    password=None,
-                    backend=default_backend()
-                )
-                qualified_username, issuer_str = _get_qualified_names(account_locator, user, public_key_fp)
-                
-                now_utc = datetime.datetime.now(datetime.timezone.utc)
-                lifetime = datetime.timedelta(minutes=59) 
-                
-                payload = {
-                    "iss": issuer_str,
-                    "sub": qualified_username,
-                    "iat": int(now_utc.timestamp()),
-                    "exp": int((now_utc + lifetime).timestamp())
-                }
-                token = jwt.encode(payload, private_key, algorithm="RS256")
-                return token
-            except Exception as e:
-                st.warning(f"Key-Pair Authentication Warning: Could not generate JWT. Details: {e}. Will attempt username/password auth if configured.")
-                # Do not return None yet, allow fallback
-
-    # Attempt Username/Password authentication if key-pair failed or not fully configured
+    # Key-Pair authentication block has been removed as per request to remove JWT references.
+    
+    # Attempt Username/Password authentication
     snow_creds = st.secrets.get("snowflake")
     if snow_creds and snow_creds.get("user") and snow_creds.get("password") and snow_creds.get("account"):
         try:
@@ -92,9 +37,9 @@ def get_snowflake_jwt() -> str | None:
                     'QUERY_TAG': 'CortexAnalystStreamlitAppAuth',
                 }
             )
-            # The session token is what we need for API calls (it's a JWT)
-            # Note: The Snowflake Connector's session token might have a different lifetime
-            # than the manually generated key-pair JWT. Typically 4 hours for connector.
+            # The session token is what we need for API calls.
+            # Note: The Snowflake Connector's session token might have a different lifetime.
+            # Typically 4 hours for connector.
             session_token = conn.sfqid # sfqid is often the session ID, token is often in master_token or session_token
             
             # snowflake-connector-python versions >= 2.7.0 provide session_token directly
@@ -142,8 +87,8 @@ def get_snowflake_jwt() -> str | None:
             st.error(f"Authentication Error (User/Pass): Could not connect to Snowflake or get session token. Details: {e}")
             return None
             
-    # If neither method succeeded or was configured
-    st.error("Authentication Error: Neither Key-Pair (snowflake_api_auth) nor Username/Password (snowflake) credentials are fully configured or valid in secrets.toml.")
+    # If username/password method failed or was not configured
+    st.error("Authentication Error: Username/Password (snowflake) credentials are not fully configured or valid in secrets.toml.")
     return None
 
 def get_snowflake_api_base_url() -> str | None:
