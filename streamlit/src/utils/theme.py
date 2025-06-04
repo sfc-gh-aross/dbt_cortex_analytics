@@ -21,7 +21,7 @@ THEME_CONFIG = {
         'text_secondary': '#374151',
         'border': '#e5e7eb',
         'hover': '#f9fafb',
-        'button_text': '#111827',  # black for light mode
+        'button_text': '#f9fafb',  # Changed from '#111827' to white
         'trend_positive': '#3b82f6',  # indigo-500
         'trend_negative': '#1d4ed8',   # indigo-700
         'toggle': '#3b82f6'  # indigo-500
@@ -684,6 +684,10 @@ def apply_theme():
             [data-testid="stBaseButton-primary"]:focus,
             [data-testid="stBaseButton-primary"]:hover,
             [data-testid="stBaseButton-primary"]:active,
+            [data-testid="stBaseButton-secondary"],
+            [data-testid="stBaseButton-secondary"]:focus,
+            [data-testid="stBaseButton-secondary"]:hover,
+            [data-testid="stBaseButton-secondary"]:active,
             .st-emotion-cache-zaw6nw,
             .st-emotion-cache-zaw6nw:focus,
             .st-emotion-cache-zaw6nw:hover,
@@ -716,6 +720,7 @@ def apply_theme():
             .element-container .stDownloadButton>button:hover,
             [data-testid="stBaseButton"]:hover,
             [data-testid="stBaseButton-primary"]:hover,
+            [data-testid="stBaseButton-secondary"]:hover,
             .st-emotion-cache-zaw6nw:hover {{
                 background-color: #2563eb !important;  /* Slightly darker blue for hover */
                 border-color: #2563eb !important;
@@ -728,6 +733,7 @@ def apply_theme():
             .element-container .stDownloadButton>button:focus,
             [data-testid="stBaseButton"]:focus,
             [data-testid="stBaseButton-primary"]:focus,
+            [data-testid="stBaseButton-secondary"]:focus,
             .st-emotion-cache-zaw6nw:focus {{
                 background-color: #2563eb !important;
                 border-color: #2563eb !important;
@@ -741,6 +747,7 @@ def apply_theme():
             .element-container .stDownloadButton>button:active,
             [data-testid="stBaseButton"]:active,
             [data-testid="stBaseButton-primary"]:active,
+            [data-testid="stBaseButton-secondary"]:active,
             .st-emotion-cache-zaw6nw:active {{
                 background-color: #1d4ed8 !important;  /* Even darker blue for active */
                 border-color: #1d4ed8 !important;
@@ -770,7 +777,7 @@ def apply_theme():
                 visibility: hidden !important;
                 width: 260px !important;
                 background-color: var(--background-color-secondary) !important;
-                color: var(--text-color) !important;
+                color: #f9fafb !important;
                 text-align: left !important;
                 border-radius: 6px !important;
                 padding: 10px 12px !important;

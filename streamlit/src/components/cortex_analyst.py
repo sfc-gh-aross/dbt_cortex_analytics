@@ -29,17 +29,13 @@ SNOWFLAKE_CORTEX_ANALYST_API_PATH = "/api/v2/cortex/analyst/message"
 def render_cortex_analyst_tab(filters: dict, debug_mode: bool = False):
     """Render the 'Ask Your Data' tab (Cortex Analyst interface) using REST API"""
     
-    st.markdown("""
-    <style>
-    .custom-ask-button-container div[data-testid="stButton"] button p {
-        color: white !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-    
+    # Initialize session state for user_question if not present
+    if 'user_question' not in st.session_state:
+        st.session_state.user_question = ""
+
     title_col, icon_col = st.columns([10,1], gap="small")
     with title_col:
-        st.header("Ask Your Data (Powered by Cortex Analyst)")
+        st.header("🗣️ Ask Your Data") # Added icon
     with icon_col:
         st.markdown("ℹ️", help="Allows users to ask business questions in natural language about client analytics. Interfaces with Cortex Analyst via REST API, leveraging a semantic model for answers.")
     
@@ -48,53 +44,72 @@ def render_cortex_analyst_tab(filters: dict, debug_mode: bool = False):
         "Cortex Analyst will translate your question into SQL and provide an answer using the Customer Analytics Semantic Model."
     )
     
-    # Sample questions with business value context
-    st.subheader("Try these sample questions:")
-    
-    sample_questions_col1, sample_questions_col2 = st.columns(2)
-    
-    with sample_questions_col1:
-        if st.button("Can I see a count of customers and their average sentiment score, grouped by predicted churn risk level?", 
-                    help="Why this matters: Understands customer churn likelihood and associated sentiment across different risk levels.",
-                    key="sample_q1"):
-            st.session_state.user_question = "Can I see a count of customers and their average sentiment score, grouped by predicted churn risk level?"
-    
-    with sample_questions_col2:
-        if st.button("Can you list my top 20 high LTV customers with 'High' churn_risk and a significantly negative sentiment trend, showing key persona signals?", 
-                    help="Why this matters: Identifies key high-value customers at risk of churning and the reasons, enabling proactive retention efforts.",
-                    key="sample_q2"):
-            st.session_state.user_question = "Can you list my top 20 high LTV customers with 'High' churn_risk and a significantly negative sentiment trend, showing key persona signals?"
-    
-    # Adding a third sample question from verified_queries
-    if st.button("Can you identify products where I have an average rating below 3.0 or average review sentiment below -0.1, highlighting potential problem areas?", 
-                help="Why this matters: Pinpoints underperforming products based on customer feedback, guiding improvement strategies.",
-                key="sample_q3"):
-        st.session_state.user_question = "Can you identify products where I have an average rating below 3.0 or average review sentiment below -0.1, highlighting potential problem areas?"
-    
-    # Adding a fourth sample question from verified_queries
-    if st.button("Can you analyze my critical and high priority support tickets, grouped by derived customer persona and ticket category?",
-                help="Why this matters: Helps prioritize support resources by understanding which customer segments and issue types generate the most critical tickets.",
-                key="sample_q4"): 
-        st.session_state.user_question = "Can you analyze my critical and high priority support tickets, grouped by derived customer persona and ticket category?"
+    st.markdown("---") # Separator
 
-    if 'user_question' not in st.session_state:
-        st.session_state.user_question = ""
-    
-    user_question_input = st.text_area("Your question:", value=st.session_state.user_question, height=100, placeholder="e.g., 'Show me top clients by YTD revenue'", key="user_question_text_area")
-    
-    st.markdown('<div class="custom-ask-button-container">', unsafe_allow_html=True)
-    ask_button_clicked = st.button("Ask Cortex Analyst", key="ask_button")
-    st.markdown('</div>', unsafe_allow_html=True)
+    # Section for asking a new question
+    with st.container():
+        st.subheader("📝 Ask a New Question")
 
-    if ask_button_clicked:
-        if user_question_input:
-            st.session_state.user_question = user_question_input # Ensure latest input is used
-            ask_cortex_analyst_api(user_question_input)
-        else:
-            st.warning("Please enter a question.")
+        # Sample questions with business value context
+        st.markdown("**Try these sample questions:**")
+        
+        sample_questions_col1, sample_questions_col2 = st.columns(2)
+        
+        # Store sample questions in a list for easier management
+        sample_questions = [
+            "Can I see a count of customers and their average sentiment score, grouped by predicted churn risk level?",
+            "Can you list my top 20 high LTV customers with 'High' churn_risk and a significantly negative sentiment trend, showing key persona signals?",
+            "Can you identify products where I have an average rating below 3.0 or average review sentiment below -0.1, highlighting potential problem areas?",
+            "Can you analyze my critical and high priority support tickets, grouped by derived customer persona and ticket category?"
+        ]
+
+        def populate_question_from_sample(question_text):
+            st.session_state.user_question = question_text
+            st.rerun() # Refresh UI to show populated text
+
+        with sample_questions_col1:
+            if st.button(sample_questions[0], key="sample_q1"):
+                populate_question_from_sample(sample_questions[0])
+            if st.button(sample_questions[2], key="sample_q3"):
+                populate_question_from_sample(sample_questions[2])
+        
+        with sample_questions_col2:
+            if st.button(sample_questions[1], key="sample_q2"):
+                populate_question_from_sample(sample_questions[1])
+            if st.button(sample_questions[3], key="sample_q4"):
+                populate_question_from_sample(sample_questions[3])
+        
+        st.markdown("---") # Separator before input text area
+
+        user_question_input = st.text_area(
+            "Your question:", 
+            value=st.session_state.user_question, 
+            height=100, 
+            placeholder="e.g., 'Show me top clients by YTD revenue'", 
+            key="user_question_text_area"
+        )
+        
+        ask_col, clear_col = st.columns([3,1]) # Adjust ratio as needed
+        
+        with ask_col:
+            if st.button("💬 Ask Cortex Analyst", key="ask_button", type="primary", use_container_width=True):
+                if user_question_input:
+                    st.session_state.user_question = user_question_input 
+                    ask_cortex_analyst_api(user_question_input)
+                else:
+                    st.warning("Please enter a question.")
+        
+        with clear_col:
+            if st.button("🧹 Clear Input", key="clear_button", use_container_width=True):
+                st.session_state.user_question = ""
+                st.rerun()
+
+
+    st.markdown("---") # Separator before response section
 
     # Display previous conversation/results if any
     if "cortex_analyst_response" in st.session_state and st.session_state.cortex_analyst_response:
+        st.subheader("🔍 Analyst Response")
         response_data = st.session_state.cortex_analyst_response
         display_cortex_response(
             response_data.get("api_response_json"), 
@@ -465,7 +480,7 @@ def display_cortex_response(api_response_json, execution_time, request_id):
         # Ensure the error message is prominently displayed, as previous st.error calls
         # might have been cleared by a st.rerun().
         error_msg_text = api_response_json.get('error', 'An unknown error occurred with Cortex Analyst.')
-        st.error(error_msg_text)
+        st.error(f"**🚫 Error:** {error_msg_text}") # Added icon and emphasis
         
         if "details" in api_response_json and api_response_json['details']:
             with st.expander("Error Details", expanded=True): # Expanded by default for visibility
@@ -489,28 +504,40 @@ def display_cortex_response(api_response_json, execution_time, request_id):
     sql_confidence = None
     suggestions_list = []
 
-    st.markdown("---") # Separator for the response section
+    st.markdown("--- --- --- ") # Stronger Separator for the response section
 
     for item_idx, item in enumerate(analyst_content):
         item_type = item.get("type")
 
         if item_type == "text":
-            st.subheader("Answer:")
-            st.markdown(item.get("text", "No textual answer provided."))
+            st.subheader("💡 Answer:") # Changed subheader for emphasis
+            text_content = item.get("text", "No textual answer provided.")
+            st.markdown(f"> {text_content}", unsafe_allow_html=True) # Using blockquote for emphasis
         
         elif item_type == "sql":
             generated_sql = item.get("statement")
             sql_confidence = item.get("confidence")
             if generated_sql:
-                with st.expander("Generated SQL Query", expanded=False):
-                    st.code(generated_sql, language="sql")
-                    if sql_confidence:
-                        verified_query_used = sql_confidence.get("verified_query_used")
-                        if verified_query_used:
-                            st.markdown("**Verified Query Used:**")
-                            st.json(verified_query_used, expanded=False)
-                        # You can add more details from sql_confidence if needed
+                sql_expander_title = "📄 Generated SQL Query"
+                if sql_confidence and sql_confidence.get("verified_query_used"):
+                    sql_expander_title += " (✅ Verified)"
+                elif sql_confidence and sql_confidence.get("score") is not None:
+                    confidence_score = sql_confidence.get("score")
+                    emoji_score = "🟢" if confidence_score > 0.7 else ("🟡" if confidence_score > 0.4 else "🔴")
+                    sql_expander_title += f" (Confidence: {emoji_score} {confidence_score:.2f})"
 
+                with st.expander(sql_expander_title, expanded=False):
+                    st.code(generated_sql, language="sql")
+                    st.button("📋 Copy SQL", key=f"copy_sql_{request_id}_{item_idx}")
+
+                    if sql_confidence:
+                        if st.session_state.get("debug_mode") or not sql_confidence.get("verified_query_used"):
+                            # Show full confidence details in debug mode or if not a simple verified query
+                            st.markdown("**SQL Confidence Details:**")
+                            st.json(sql_confidence, expanded=False)
+                        elif sql_confidence.get("verified_query_used"):
+                             st.success("This query was directly answered using a pre-verified SQL pattern.")
+        
         elif item_type == "suggestions":
             suggestions_list.extend(item.get("suggestions", []))
         
@@ -534,9 +561,9 @@ def display_cortex_response(api_response_json, execution_time, request_id):
                 display_charts_for_df(df, chart_key_prefix=f"cortex_chart_{request_id or 'default'}")
     
     if suggestions_list:
-        st.subheader("You might also want to ask:")
+        st.subheader("🤔 You might also want to ask:")
         num_suggestions = len(suggestions_list)
-        cols_per_row = 3
+        cols_per_row = 2 # Reduced to 2 for better readability of longer suggestions
         
         for i in range(0, num_suggestions, cols_per_row):
             cols = st.columns(cols_per_row)
@@ -545,10 +572,8 @@ def display_cortex_response(api_response_json, execution_time, request_id):
                     suggestion_text = suggestions_list[i+j]
                     if cols[j].button(suggestion_text, key=f"suggestion_{request_id}_{i+j}"):
                         st.session_state.user_question = suggestion_text
-                        # Clear previous response before asking new question
                         st.session_state.cortex_analyst_response = None 
-                        st.rerun() # This will repopulate the text_area and user can click "Ask"
-                                                # Or, we can directly call ask_cortex_analyst_api here
+                        ask_cortex_analyst_api(suggestion_text) # Directly ask
 
     # Display warnings and response metadata if present
     warnings = api_response_json.get("warnings")
@@ -646,11 +671,38 @@ def display_charts_for_df(df: pd.DataFrame, chart_key_prefix: str):
     if y_axis in plot_df.columns and not pd.api.types.is_numeric_dtype(plot_df[y_axis]):
         st.warning(f"Y-axis ('{y_axis}') is not numeric. Line and Bar charts might not render correctly.")
 
+    # --- Infer default chart type ---
+    default_chart_type_index = 0 # Default to Bar Chart
+    x_is_datetime = pd.api.types.is_datetime64_any_dtype(plot_df[x_axis])
+    x_is_numeric = pd.api.types.is_numeric_dtype(plot_df[x_axis])
+    x_is_categorical = pd.api.types.is_categorical_dtype(plot_df[x_axis]) or pd.api.types.is_object_dtype(plot_df[x_axis])
+    y_is_numeric = pd.api.types.is_numeric_dtype(plot_df[y_axis]) if y_axis in plot_df.columns else False
+
+    chart_options = ["Bar Chart", "Line Chart", "Area Chart", "Scatter Plot"]
+    chart_guidance = {
+        "Bar Chart": "Compares values across categories. Good for categorical X-axis and numeric Y-axis.",
+        "Line Chart": "Shows trends over time or ordered categories. Best with datetime/numeric X-axis and numeric Y-axis.",
+        "Area Chart": "Similar to line charts but emphasizes volume/magnitude. Best with datetime/numeric X-axis and numeric Y-axis.",
+        "Scatter Plot": "Shows relationships between two numeric variables. Requires numeric X and Y axes."
+    }
+
+    if x_is_datetime and y_is_numeric:
+        if "Line Chart" in chart_options: default_chart_type_index = chart_options.index("Line Chart")
+    elif x_is_categorical and y_is_numeric:
+        if "Bar Chart" in chart_options: default_chart_type_index = chart_options.index("Bar Chart")
+    elif x_is_numeric and y_is_numeric:
+        if "Scatter Plot" in chart_options: default_chart_type_index = chart_options.index("Scatter Plot")
+        elif "Line Chart" in chart_options: default_chart_type_index = chart_options.index("Line Chart") # Fallback for sequential numeric X
+
     chart_type = st.selectbox(
         "Select chart type:",
-        options=["Bar Chart", "Line Chart", "Area Chart", "Scatter Plot"],
+        options=chart_options,
+        index=default_chart_type_index,
         key=f"{chart_key_prefix}_chart_type"
     )
+
+    if chart_type in chart_guidance:
+        st.caption(chart_guidance[chart_type])
 
     try:
         # Group by X-axis and sum/mean Y-axis if X is categorical and Y is numeric
