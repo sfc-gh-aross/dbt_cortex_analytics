@@ -55,3 +55,4 @@ yarn-error.log*
 *.temp
 @.streamlit
 @secrets.toml 
+git_update.sh
