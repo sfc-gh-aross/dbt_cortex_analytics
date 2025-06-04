@@ -14,44 +14,20 @@ import os
 
 # --- KPI Data Loading Functions ---
 @st.cache_data(ttl=300)
-def load_dominant_persona_data() -> pd.DataFrame:
-    """Load data for Dominant Persona KPI."""
-    query = "segmentation/kpi_dominant_persona.sql"
+def load_combined_kpi_data() -> pd.DataFrame:
+    """Load combined data for all KPIs."""
+    query = "segmentation/kpi_combined_segmentation.sql"
     results = snowflake_conn.execute_query(query)
     df = pd.DataFrame(results)
     if st.session_state.get('debug_mode', False):
-        display_debug_info(sql_file_path=query, params={}, results=df, query_name="Dominant Persona KPI")
+        display_debug_info(sql_file_path=query, params={}, results=df, query_name="Combined KPI Data")
     return df
 
-@st.cache_data(ttl=300)
-def load_high_value_customer_percentage_data() -> pd.DataFrame:
-    """Load data for High-Value Customer Percentage KPI."""
-    query = "segmentation/kpi_high_value_customer_percentage.sql"
-    results = snowflake_conn.execute_query(query)
-    df = pd.DataFrame(results)
-    if st.session_state.get('debug_mode', False):
-        display_debug_info(sql_file_path=query, params={}, results=df, query_name="High-Value Customer % KPI")
-    return df
-
-@st.cache_data(ttl=300)
-def load_high_value_churn_risk_share_data() -> pd.DataFrame:
-    """Load data for Share of High-Value Customers in High Churn Risk KPI."""
-    query = "segmentation/kpi_high_value_churn_risk_share.sql"
-    results = snowflake_conn.execute_query(query)
-    df = pd.DataFrame(results)
-    if st.session_state.get('debug_mode', False):
-        display_debug_info(sql_file_path=query, params={}, results=df, query_name="High-Value High Churn Share KPI")
-    return df
-
-@st.cache_data(ttl=300)
-def load_total_ltv_at_risk_data() -> pd.DataFrame:
-    """Load data for Total LTV at Risk (High Churn Segment) KPI."""
-    query = "segmentation/kpi_total_ltv_at_risk.sql"
-    results = snowflake_conn.execute_query(query)
-    df = pd.DataFrame(results)
-    if st.session_state.get('debug_mode', False):
-        display_debug_info(sql_file_path=query, params={}, results=df, query_name="Total LTV at Risk KPI")
-    return df
+# Removed old KPI data loading functions:
+# load_dominant_persona_data
+# load_high_value_customer_percentage_data
+# load_high_value_churn_risk_share_data
+# load_total_ltv_at_risk_data
 # --- End KPI Data Loading Functions ---
 
 def render_segmentation(filters: dict, debug_mode: bool = False) -> None:
@@ -61,95 +37,6 @@ def render_segmentation(filters: dict, debug_mode: bool = False) -> None:
         filters: Dictionary of global filter values.
         debug_mode: Boolean flag to control visibility of debug information
     """
-    
-    # --- Load KPI Data ---
-    with st.spinner("Loading KPI data..."):
-        dominant_persona_df = load_dominant_persona_data()
-        high_value_customer_percentage_df = load_high_value_customer_percentage_data()
-        high_value_churn_share_df = load_high_value_churn_risk_share_data()
-        ltv_at_risk_df = load_total_ltv_at_risk_data()
-
-    # --- Prepare and Render KPIs ---
-    kpis_to_render = []
-
-    # 1. Dominant Persona
-    if not dominant_persona_df.empty:
-        persona_name = dominant_persona_df['DERIVED_PERSONA'].iloc[0]
-        persona_count = dominant_persona_df['CUSTOMER_COUNT'].iloc[0]
-        kpis_to_render.append({
-            "label": f"Dominant Persona: {persona_name}",
-            "value": f"{persona_count:,} Customers",
-            "delta": 0, # Trend/delta not implemented for this KPI
-            "help": "The largest customer segment identified and the number of customers within it.",
-            "trend_data": None
-        })
-    else:
-        kpis_to_render.append({
-            "label": "Dominant Persona", "value": "N/A", "delta": 0, 
-            "help": "Could not load dominant persona data.", "trend_data": None
-        })
-
-    # 2. High-value Customer Percentage (Replaces High Churn Risk %)
-    if not high_value_customer_percentage_df.empty and 'HIGH_VALUE_CUSTOMER_PERCENTAGE' in high_value_customer_percentage_df.columns:
-        hv_customer_percentage = high_value_customer_percentage_df['HIGH_VALUE_CUSTOMER_PERCENTAGE'].iloc[0]
-        kpis_to_render.append({
-            "label": "High-Value Customer %",
-            "value": f"{hv_customer_percentage:.1f}%",
-            "delta": 0, # Trend/delta not implemented for this KPI
-            "help": "Percentage of customers with a lifetime value greater than $1,000.",
-            "trend_data": None
-        })
-    else:
-        kpis_to_render.append({
-            "label": "High-Value Customer %", "value": "N/A", "delta": 0, 
-            "help": "Could not load high-value customer percentage.", "trend_data": None
-        })
-        
-    # 3. Share of High-Value Customers in High Churn Risk
-    if not high_value_churn_share_df.empty and 'SHARE_HIGH_VALUE_IN_HIGH_RISK' in high_value_churn_share_df.columns:
-        hv_churn_share = high_value_churn_share_df['SHARE_HIGH_VALUE_IN_HIGH_RISK'].iloc[0]
-        kpis_to_render.append({
-            "label": "High-Value in High Churn Risk %",
-            "value": f"{hv_churn_share:.1f}%",
-            "delta": 0, # Trend/delta not implemented
-            "help": "Proportion of high-value customers (LTV >= $1000) who are also at high risk of churning.",
-            "trend_data": None
-        })
-    else:
-        kpis_to_render.append({
-            "label": "High-Value in High Churn Risk %", "value": "N/A", "delta": 0,
-            "help": "Could not load data for high-value customers in high churn risk.", "trend_data": None
-        })
-
-    # 4. Total LTV at Risk (High Churn Segment)
-    if not ltv_at_risk_df.empty and 'TOTAL_LTV_AT_RISK' in ltv_at_risk_df.columns:
-        total_ltv = ltv_at_risk_df['TOTAL_LTV_AT_RISK'].iloc[0]
-        kpis_to_render.append({
-            "label": "LTV at Risk (High Churn)",
-            "value": f"${total_ltv:,.0f}",
-            "delta": 0, # Trend/delta not implemented
-            "help": "Total lifetime value of customers currently classified with 'High' churn risk.",
-            "trend_data": None
-        })
-    else:
-        kpis_to_render.append({
-            "label": "LTV at Risk (High Churn)", "value": "N/A", "delta": 0,
-            "help": "Could not load data for total LTV at risk.", "trend_data": None
-        })
-        
-    if kpis_to_render:
-        # Adapt KPIs for render_simple_kpis
-        simple_kpis = []
-        for kpi in kpis_to_render:
-            simple_kpis.append({
-                "label": kpi["label"],
-                "value": kpi["value"],
-                "help": kpi["help"],
-                "timeframe": "Summary" # Using a generic timeframe as these are summary stats
-            })
-        render_simple_kpis(simple_kpis, columns=4)
-    # --- End KPIs ---
-    
     st.markdown("""
     <style>
     h2 {
@@ -214,7 +101,107 @@ def render_segmentation(filters: dict, debug_mode: bool = False) -> None:
         </div>
     </div>
     """, unsafe_allow_html=True)
+    
+    # --- Load KPI Data ---
+    with st.spinner("Loading KPI data..."):
+        combined_kpi_df = load_combined_kpi_data()
 
+    # --- Prepare and Render KPIs ---
+    kpis_to_render = []
+
+    if not combined_kpi_df.empty:
+        # Extract data from the first (and only) row of the combined DataFrame
+        kpi_data = combined_kpi_df.iloc[0]
+
+        # 1. Dominant Persona
+        persona_name = kpi_data.get('DOMINANT_PERSONA_NAME')
+        persona_count = kpi_data.get('DOMINANT_PERSONA_COUNT')
+        if pd.notna(persona_name) and pd.notna(persona_count):
+            kpis_to_render.append({
+                "label": f"Dominant Persona: {persona_name}",
+                "value": f"{int(persona_count):,} Customers",
+                "delta": 0, 
+                "help": "The largest customer segment identified and the number of customers within it.",
+                "trend_data": None
+            })
+        else:
+            kpis_to_render.append({
+                "label": "Dominant Persona", "value": "N/A", "delta": 0, 
+                "help": "Could not load dominant persona data.", "trend_data": None
+            })
+
+        # 2. High-value Customer Percentage
+        hv_customer_percentage = kpi_data.get('HIGH_VALUE_CUSTOMER_PERCENTAGE')
+        if pd.notna(hv_customer_percentage):
+            kpis_to_render.append({
+                "label": "High-Value Customer %",
+                "value": f"{hv_customer_percentage:.1f}%",
+                "delta": 0, 
+                "help": "Percentage of customers with a lifetime value greater than $1,000.",
+                "trend_data": None
+            })
+        else:
+            kpis_to_render.append({
+                "label": "High-Value Customer %", "value": "N/A", "delta": 0, 
+                "help": "Could not load high-value customer percentage.", "trend_data": None
+            })
+            
+        # 3. Share of High-Value Customers in High Churn Risk
+        hv_churn_share = kpi_data.get('SHARE_HIGH_VALUE_IN_HIGH_RISK')
+        if pd.notna(hv_churn_share):
+            kpis_to_render.append({
+                "label": "High-Value in High Churn Risk %",
+                "value": f"{hv_churn_share:.1f}%",
+                "delta": 0, 
+                "help": "Proportion of high-value customers (LTV >= $1000) who are also at high risk of churning.",
+                "trend_data": None
+            })
+        else:
+            kpis_to_render.append({
+                "label": "High-Value in High Churn Risk %", "value": "N/A", "delta": 0,
+                "help": "Could not load data for high-value customers in high churn risk.", "trend_data": None
+            })
+
+        # 4. Total LTV at Risk (High Churn Segment)
+        total_ltv = kpi_data.get('TOTAL_LTV_AT_RISK')
+        if pd.notna(total_ltv):
+            kpis_to_render.append({
+                "label": "LTV at Risk (High Churn)",
+                "value": f"${total_ltv:,.0f}",
+                "delta": 0, 
+                "help": "Total lifetime value of customers currently classified with 'High' churn risk.",
+                "trend_data": None
+            })
+        else:
+            kpis_to_render.append({
+                "label": "LTV at Risk (High Churn)", "value": "N/A", "delta": 0,
+                "help": "Could not load data for total LTV at risk.", "trend_data": None
+            })
+    else: # If combined_kpi_df is empty
+        for label, help_text in [
+            ("Dominant Persona", "Could not load dominant persona data."),
+            ("High-Value Customer %", "Could not load high-value customer percentage."),
+            ("High-Value in High Churn Risk %", "Could not load data for high-value customers in high churn risk."),
+            ("LTV at Risk (High Churn)", "Could not load data for total LTV at risk.")
+        ]:
+            kpis_to_render.append({
+                "label": label, "value": "N/A", "delta": 0, 
+                "help": help_text, "trend_data": None
+            })
+        
+    if kpis_to_render:
+        # Adapt KPIs for render_simple_kpis
+        simple_kpis = []
+        for kpi in kpis_to_render:
+            simple_kpis.append({
+                "label": kpi["label"],
+                "value": kpi["value"],
+                "help": kpi["help"],
+                "timeframe": "Summary" # Using a generic timeframe as these are summary stats
+            })
+        render_simple_kpis(simple_kpis, columns=4)
+    # --- End KPIs ---
+    
     # --- Visual Inventory from STREAMLIT_PRD.md Section 4.5 ---
     
     with st.expander("Persona Distribution Analysis", expanded=True):

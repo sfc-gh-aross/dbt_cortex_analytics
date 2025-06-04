@@ -120,7 +120,26 @@ def render_product_feedback(filters, debug_mode=False):
         filters: Dictionary containing filter values
         debug_mode: Whether to show debug information
     """
-    st.title("Product Feedback Analysis")
+    # st.title("Product Feedback Analysis") # Old title
+    st.markdown("""
+    <style>
+    h2 {
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+    </style>
+    <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
+        <h2>Product Feedback Analysis</h2>
+        <div class="tooltip">
+            <span class="help-icon">?</span>
+            <span class="tooltiptext">
+                Analyze product feedback including rating trends, sentiment by language, and recent reviews.
+                <br><br>
+                Use the filters to refine the data and explore insights.
+            </span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
     
     # Load all data first
     with st.spinner("Loading product feedback data..."):

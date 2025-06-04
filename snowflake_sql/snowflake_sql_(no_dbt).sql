@@ -237,11 +237,11 @@ SELECT
     )['label'] AS priority_level,
     -- Add customer expectations
     SNOWFLAKE.CORTEX.COMPLETE(
-        'claude-3-5-sonnet',
+        'claude-4-sonnet',
         'What specific timeframe or deadline does the customer mention or expect for resolution? ' || t.ticket_description
     ) AS expected_resolution_timeframe,
     SNOWFLAKE.CORTEX.COMPLETE(
-        'claude-3-5-sonnet',
+        'claude-4-sonnet',
         'What compensation, refund, or specific remedy is the customer seeking? ' || t.ticket_description
     ) AS requested_remedy
 FROM ANALYTICS.STG_SUPPORT_TICKETS t
@@ -324,7 +324,7 @@ CREATE OR REPLACE TABLE ANALYTICS.INSIGHT_SUMMARIES AS
 SELECT
     customer_id,
     SNOWFLAKE.CORTEX.COMPLETE(
-        'claude-3-5-sonnet',
+        'claude-4-sonnet',
         [
             {
                 'role': 'user',

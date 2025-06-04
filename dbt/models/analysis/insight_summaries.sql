@@ -5,7 +5,7 @@
 SELECT
     customer_id,
     SNOWFLAKE.CORTEX.COMPLETE(
-        'claude-3-5-sonnet',
+        'claude-4-sonnet',
         [
             {
                 'role': 'user',

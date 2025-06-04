@@ -46,6 +46,7 @@ from .sentiment_experience import render_sentiment_experience
 from .support_ops import render_support_ops_dashboard
 from .product_feedback import render_product_feedback
 from .segmentation import render_segmentation
+from .cortex_analyst import render_cortex_analyst_tab
 
 # Register all components
 registry.register(Component(
@@ -84,8 +85,16 @@ registry.register(Component(
     name="segmentation",
     render_func=render_segmentation,
     display_name="Segmentation",
-    icon="🎯",
+    icon="ચા",
     order=5
+))
+
+registry.register(Component(
+    name="cortex_analyst",
+    render_func=render_cortex_analyst_tab,
+    display_name="Cortex Analyst",
+    icon="🧠",
+    order=6
 ))
 
 __all__ = ['registry'] 

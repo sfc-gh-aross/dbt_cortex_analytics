@@ -393,118 +393,117 @@ def render_support_ops_dashboard(filters: dict, debug_mode: bool = False) -> Non
             )
     
     # Key Metrics Section
-    with st.expander("Key Metrics", expanded=True):
-        try:
-            # Calculate KPIs
-            critical_pct = (priority_data[priority_data["priority"] == "Critical"]["ticket_count"].sum() / 
-                          priority_data["ticket_count"].sum() * 100)
-            
-            # Calculate average first response time in minutes
-            avg_response_time = first_response_data["avg_response_time_minutes"].mean()
-            response_trend = get_smoothed_trend_data(first_response_data, "avg_response_time_minutes")
-            
-            # Calculate resolution rate
-            resolution_rate = resolution_rate_data["resolution_rate"].mean()
-            resolution_trend = get_smoothed_trend_data(resolution_rate_data, "resolution_rate")
-            
-            # Calculate customer effort score
-            effort_score = customer_effort_data["customer_effort_score"].mean()
-            effort_trend = get_smoothed_trend_data(customer_effort_data, "customer_effort_score")
-            
-            # Calculate channel effectiveness
-            channel_effectiveness = channel_effectiveness_data["channel_effectiveness_score"].mean()
-            effectiveness_trend = get_smoothed_trend_data(channel_effectiveness_data, "channel_effectiveness_score")
-            
-            # Convert average response time to hours and minutes for display
-            if pd.isna(avg_response_time):
-                avg_response_time_str = "N/A"
-            else:
-                avg_response_time_hours = int(avg_response_time // 60)
-                avg_response_time_minutes_part = int(avg_response_time % 60)
-                avg_response_time_str = f"{avg_response_time_hours}h {avg_response_time_minutes_part}m"
+    try:
+        # Calculate KPIs
+        critical_pct = (priority_data[priority_data["priority"] == "Critical"]["ticket_count"].sum() / 
+                      priority_data["ticket_count"].sum() * 100)
+        
+        # Calculate average first response time in minutes
+        avg_response_time = first_response_data["avg_response_time_minutes"].mean()
+        response_trend = get_smoothed_trend_data(first_response_data, "avg_response_time_minutes")
+        
+        # Calculate resolution rate
+        resolution_rate = resolution_rate_data["resolution_rate"].mean()
+        resolution_trend = get_smoothed_trend_data(resolution_rate_data, "resolution_rate")
+        
+        # Calculate customer effort score
+        effort_score = customer_effort_data["customer_effort_score"].mean()
+        effort_trend = get_smoothed_trend_data(customer_effort_data, "customer_effort_score")
+        
+        # Calculate channel effectiveness
+        channel_effectiveness = channel_effectiveness_data["channel_effectiveness_score"].mean()
+        effectiveness_trend = get_smoothed_trend_data(channel_effectiveness_data, "channel_effectiveness_score")
+        
+        # Convert average response time to hours and minutes for display
+        if pd.isna(avg_response_time):
+            avg_response_time_str = "N/A"
+        else:
+            avg_response_time_hours = int(avg_response_time // 60)
+            avg_response_time_minutes_part = int(avg_response_time % 60)
+            avg_response_time_str = f"{avg_response_time_hours}h {avg_response_time_minutes_part}m"
 
-            kpis = [
-                {
-                    "label": "First Response Time",
-                    "value": avg_response_time_str,
-                    "delta": -calculate_delta(response_trend),  # Negative because lower is better
-                    "help": """
-                    Average time to first response on support tickets.
-                    - Critical: 30min target
-                    - High: 2hr target
-                    - Medium: 8hr target
-                    - Low: 24hr target
-                    """,
-                    "trend_data": response_trend
-                },
-                {
-                    "label": "Resolution Rate",
-                    "value": f"{resolution_rate:.1f}%",
-                    "delta": calculate_delta(resolution_trend),
-                    "help": """
-                    Percentage of tickets resolved.
-                    - Includes all ticket priorities
-                    - Based on current ticket status
-                    - Week-over-week change shown
-                    """,
-                    "trend_data": resolution_trend
-                },
-                {
-                    "label": "Customer Effort Score",
-                    "value": f"{effort_score:.1f}",
-                    "delta": -calculate_delta(effort_trend),  # Negative because lower effort is better
-                    "help": """
-                    Composite score of customer effort required:
-                    - Priority level (40%)
-                    - Sentiment impact (30%)
-                    - Resolution time (30%)
-                    Lower score = less customer effort
-                    """,
-                    "trend_data": effort_trend
-                },
-                {
-                    "label": "Channel Effectiveness",
-                    "value": f"{channel_effectiveness:.1f}%",
-                    "delta": calculate_delta(effectiveness_trend),
-                    "help": """
-                    Overall effectiveness of support channels:
-                    - Resolution rate (40%)
-                    - Customer sentiment (40%)
-                    - Resolution time (20%)
-                    Higher score = more effective
-                    """,
-                    "trend_data": effectiveness_trend
-                }
-            ]
-            
-            # Render KPIs
-            render_kpis(kpis, columns=4)
-            
-            # Add download button for KPI data
-            kpi_data_for_json = [
-                {
-                    "label": kpi["label"],
-                    "value": kpi["value"],
-                    "help": kpi["help"],
-                    "delta": kpi["delta"],
-                    "trend_data": kpi["trend_data"].tolist() if isinstance(kpi["trend_data"], pd.Series) else None
-                }
-                for kpi in kpis
-            ]
-            
-            st.download_button(
-                label="⇓ Download KPI Data",
-                data=json.dumps(kpi_data_for_json, indent=2, default=decimal_to_float),
-                file_name="support_kpi_data.json",
-                mime="application/json",
-                help="Download the current KPI data as JSON"
-            )
-            
-        except KeyError as e:
-            st.error(f"Error calculating KPIs: Missing column {str(e)}")
-            if debug_mode:
-                st.write("Available columns:", ticket_volume_data.columns.tolist())
-            return
+        kpis = [
+            {
+                "label": "First Response Time",
+                "value": avg_response_time_str,
+                "delta": -calculate_delta(response_trend),  # Negative because lower is better
+                "help": """
+                Average time to first response on support tickets.
+                - Critical: 30min target
+                - High: 2hr target
+                - Medium: 8hr target
+                - Low: 24hr target
+                """,
+                "trend_data": response_trend
+            },
+            {
+                "label": "Resolution Rate",
+                "value": f"{resolution_rate:.1f}%",
+                "delta": calculate_delta(resolution_trend),
+                "help": """
+                Percentage of tickets resolved.
+                - Includes all ticket priorities
+                - Based on current ticket status
+                - Week-over-week change shown
+                """,
+                "trend_data": resolution_trend
+            },
+            {
+                "label": "Customer Effort Score",
+                "value": f"{effort_score:.1f}",
+                "delta": -calculate_delta(effort_trend),  # Negative because lower effort is better
+                "help": """
+                Composite score of customer effort required:
+                - Priority level (40%)
+                - Sentiment impact (30%)
+                - Resolution time (30%)
+                Lower score = less customer effort
+                """,
+                "trend_data": effort_trend
+            },
+            {
+                "label": "Channel Effectiveness",
+                "value": f"{channel_effectiveness:.1f}%",
+                "delta": calculate_delta(effectiveness_trend),
+                "help": """
+                Overall effectiveness of support channels:
+                - Resolution rate (40%)
+                - Customer sentiment (40%)
+                - Resolution time (20%)
+                Higher score = more effective
+                """,
+                "trend_data": effectiveness_trend
+            }
+        ]
+        
+        # Render KPIs
+        render_kpis(kpis, columns=4)
+        
+        # Add download button for KPI data
+        kpi_data_for_json = [
+            {
+                "label": kpi["label"],
+                "value": kpi["value"],
+                "help": kpi["help"],
+                "delta": kpi["delta"],
+                "trend_data": kpi["trend_data"].tolist() if isinstance(kpi["trend_data"], pd.Series) else None
+            }
+            for kpi in kpis
+        ]
+        
+        st.download_button(
+            label="⇓ Download KPI Data",
+            data=json.dumps(kpi_data_for_json, indent=2, default=decimal_to_float),
+            file_name="support_kpi_data.json",
+            mime="application/json",
+            help="Download the current KPI data as JSON"
+        )
+        
+    except KeyError as e:
+        st.error(f"Error calculating KPIs: Missing column {str(e)}")
+        if debug_mode:
+            st.write("Available columns:", ticket_volume_data.columns.tolist())
+        return
     
     # Ticket Volume Trend Section
     with st.expander("Ticket Volume Trend", expanded=True):
