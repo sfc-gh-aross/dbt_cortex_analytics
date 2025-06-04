@@ -10,9 +10,10 @@ Create the following repository skeleton:
 
 ```
 src/
-├── app.py                 # entry‑point, assembles st.tabs()
+├── streamlit_app.py       # entry‑point, assembles st.tabs()
 ├── .streamlit/
-│   └── secrets.toml
+│   ├── secrets.toml
+│   └── secrets.toml.example
 ├── components/            # one component = one dashboard tab
 │   ├── __init__.py       # component registration and imports
 │   ├── overview.py
@@ -68,7 +69,9 @@ src/
 │   ├── database.py       # Snowflake connector + query runner
 │   ├── kpi_cards.py      # helper to render st.metric rows
 │   ├── theme.py          # central colours / fonts
-│   └── debug.py          # debug mode utilities
+│   ├── debug.py          # debug mode utilities
+│   ├── auth.py           # Authentication utilities
+│   └── utils.py          # General utility functions
 ├── assets/               # static files (images, etc.)
 │   ├── download_data_dark.svg
 │   ├── download_data_light.svg
@@ -76,12 +79,12 @@ src/
 │   ├── dbt-labs-logo.svg
 │   ├── styles.css
 │   └── snowflake-logo.png
-└── __init__.py
+└── __init__.py            # src module initializer
 ```
 
 Implementation rules:
 * Each *components/*.py file ✨imports only its own SQL✨ from *sql/<dashboard>/*.sql.
-* *app.py* registers global filters (date range, persona, value segment) and passes them as kwargs to each component.
+* *streamlit_app.py* registers global filters (date range, persona, value segment) and passes them as kwargs to each component.
 * Use lazy loading (`st.spinner` + `@st.cache_data(ttl=300)`) around every SQL call.
 * All components must implement debug mode functionality via utils/debug.py.
 """
@@ -92,12 +95,25 @@ Implementation rules:
 """
 Dependencies (add to requirements.txt):
 - streamlit>=1.33
-- snowflake‑conn‑python
-- pandas, numpy
+- snowflake-connector-python
+- snowflake-snowpark-python
+- pandas
+- numpy
 - plotly>=5
 - altair>=5
-- seaborn (only for quick data‑checks, not UI)
-- streamlit‑extras (for data‑editor, copy to clipboard, etc.)
+- seaborn
+- streamlit-extras
+- python-dotenv==1.0.1
+- pyarrow<19.0.0
+- xlsxwriter
+- kaleido>=0.2.1
+- joypy
+- pywaffle
+- bar_chart_race
+- streamlit-lottie
+- pydeck
+- matplotlib
+- scipy
 
 Styling:
 - Primary colour #2563EB (indigo‑600), secondary #14B8A6 (teal‑500).
@@ -109,98 +125,38 @@ Styling:
 
 ## 3  Global Filter Implementation
 """
-Implement global filters in utils/filters.py with the following structure:
+Global filter initialization is handled in `streamlit_app.py`.
 
-1. **State Management**
+1. **State Management in `streamlit_app.py`**
+   The `initialize_session_state` function within `streamlit_app.py` handles the initial setup of filters in the session state.
    ```python
-   def initialize_filters() -> None:
-       """Initialize filter values in session state if they don't exist."""
+   # From streamlit_app.py
+   def initialize_session_state():
+       # ... (other initializations like theme, debug)
+       
+       # Initialize filters
        if 'filters' not in st.session_state:
            default_end = datetime.now()
            default_start = default_end - timedelta(days=90)
-           personas = get_filter_options()['personas']
-           
            st.session_state.filters = {
                'start_date': default_start.strftime('%Y-%m-%d'),
                'end_date': default_end.strftime('%Y-%m-%d'),
-               'personas': personas
+               'personas': []  # Empty list by default, to be populated by components or other logic
            }
-           
-           # Initialize component states
-           st.session_state.start_date_filter = default_start
-           st.session_state.end_date_filter = default_end
-           st.session_state.persona_filter = personas
-
-   def sync_filter_state() -> None:
-       """Sync component states with our filter state."""
-       if 'start_date_filter' in st.session_state:
-           st.session_state.filters['start_date'] = st.session_state.start_date_filter.strftime('%Y-%m-%d')
-       if 'end_date_filter' in st.session_state:
-           st.session_state.filters['end_date'] = st.session_state.end_date_filter.strftime('%Y-%m-%d')
-       if 'persona_filter' in st.session_state:
-           st.session_state.filters['personas'] = st.session_state.persona_filter
-   ```
-
-2. **Filter Rendering**
-   ```python
-   def render_global_filters() -> Dict[str, any]:
-       """Render global filters and return selected values."""
-       initialize_filters()
        
-       with st.sidebar:
-           st.markdown("### Filters")
-           
-           # Date range picker
-           col1, col2 = st.columns(2)
-           with col1:
-               st.date_input(
-                   "Start Date",
-                   value=datetime.strptime(st.session_state.filters['start_date'], '%Y-%m-%d'),
-                   max_value=datetime.strptime(st.session_state.filters['end_date'], '%Y-%m-%d'),
-                   key="start_date_filter"
-               )
-           with col2:
-               st.date_input(
-                   "End Date",
-                   value=datetime.strptime(st.session_state.filters['end_date'], '%Y-%m-%d'),
-                   min_value=st.session_state.start_date_filter,
-                   key="end_date_filter"
-               )
-           
-           # Persona filter
-           personas = get_filter_options()['personas']
-           st.multiselect(
-               "Persona",
-               options=personas,
-               default=st.session_state.filters['personas'],
-               key="persona_filter"
-           )
-       
-       sync_filter_state()
-       return st.session_state.filters
+       # ... (validation logic)
    ```
 
-3. **Access Methods**
-   ```python
-   def get_date_range() -> Tuple[str, str]:
-       """Get the selected date range from session state."""
-       initialize_filters()
-       sync_filter_state()
-       return st.session_state.filters['start_date'], st.session_state.filters['end_date']
-
-   def get_persona_filter() -> List[str]:
-       """Get the selected personas from session state."""
-       initialize_filters()
-       sync_filter_state()
-       return st.session_state.filters['personas']
-   ```
+2. **Filter Rendering and Access**
+   Filter rendering (e.g., using `st.sidebar`, `st.date_input`, `st.multiselect`) and access mechanisms are expected to be implemented within the relevant parts of the application (e.g., sidebar setup in `streamlit_app.py` or within individual components). The specific helper functions (`render_global_filters`, `get_date_range`, `get_persona_filter`) as previously outlined for a dedicated `utils/filters.py` are not currently implemented in that separated manner. Components receive the `st.session_state.filters` dictionary.
 
 Implementation rules:
-* Initialize filters in app.py before rendering any components
-* Call sync_filter_state() after any filter changes
-* Pass filter values to components via the filters dictionary
-* All SQL queries must respect the selected date range and personas
-* Filter state must persist across tab switches and page refreshes
+* Initialize filters in `streamlit_app.py` using `initialize_session_state()` before rendering any components.
+* The `st.session_state.filters` dictionary is passed to components.
+* Components are responsible for using these filter values in their data queries.
+* All SQL queries that are designed to be filterable must respect the selected date range and personas from the `filters` dictionary.
+* Filter state must persist across tab switches and page refreshes (managed by Streamlit's session state).
+* If components modify filter values, they should update `st.session_state.filters` directly, and care must be taken to ensure synchronization if multiple components can alter global filters.
 """
 
 ---
@@ -386,7 +342,7 @@ The debug mode functionality is implemented in `utils/debug.py` and must be used
 
 1. **Debug Utilities**
    - Import debug utilities: `from utils.debug import display_debug_info, setup_debug_mode`
-   - Use `setup_debug_mode()` in app.py to initialize debug state
+   - Use `setup_debug_mode()` in streamlit_app.py to initialize debug state
    - Implement debug display using `display_debug_info()` helper
 
 2. **Component Implementation**
