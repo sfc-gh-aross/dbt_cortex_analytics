@@ -108,9 +108,8 @@ echo -e "$commit_message" # Use -e to interpret backslashes like
 echo "--------------------"
 git commit -m "$commit_message"
 
-# 4. Push to remote (origin) and current branch
-current_branch=$(git rev-parse --abbrev-ref HEAD)
-echo "Pushing to origin/$current_branch..."
-git push origin "$current_branch"
+# 4. Push to remote (secondary main)
+echo "Pushing to secondary/main..."
+git push secondary main
 
 echo "Git update complete." 
