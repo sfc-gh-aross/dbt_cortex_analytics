@@ -371,7 +371,7 @@ def render_simple_kpis(
     }
     .simple-kpi-badge { /* Renamed */
         background: #3b82f6; /* Example color, can be dynamic */
-        color: white;
+        color: white !important; /* Ensure white text */
         padding: 0.25rem 0.75rem;
         border-radius: 9999px;
         font-size: 0.75rem;

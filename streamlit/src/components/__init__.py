@@ -69,7 +69,7 @@ registry.register(Component(
     name="support_ops",
     render_func=render_support_ops_dashboard,
     display_name="Support Operations",
-    icon="🛠️",
+    icon="💬",
     order=3
 ))
 
@@ -85,7 +85,7 @@ registry.register(Component(
     name="segmentation",
     render_func=render_segmentation,
     display_name="Segmentation",
-    icon="ચા",
+    icon="🎯",
     order=5
 ))
 
